@@ -122,4 +122,4 @@ CLARIFY / BRIEF / ARCHITECTURE / STANDARDS / TASKS 五份，维护在知识库 `
 
 ## License
 
-Apache-2.0（待补 LICENSE 文件）
+Apache License 2.0 — 见 [LICENSE](LICENSE)。
