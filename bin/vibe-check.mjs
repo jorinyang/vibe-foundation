@@ -607,22 +607,72 @@ function resolveLocalImport(fromFile, spec, extSet) {
   return null
 }
 
+function firstExisting(cands) {
+  for (const c of cands) {
+    if (existsSync(c) && statSync(c).isFile()) return c
+  }
+  return null
+}
+
+/** Python 本地模块根：sourceDir 下的包（含 __init__.py）或单文件模块 */
+function pyLocalRoots(project, dirs) {
+  const roots = new Map()
+  for (const d of dirs) {
+    const abs = resolve(project, d)
+    if (!existsSync(abs)) continue
+    for (const name of readdirSync(abs)) {
+      const p = join(abs, name)
+      const st = statSync(p)
+      if (st.isDirectory() && existsSync(join(p, '__init__.py'))) roots.set(name, { kind: 'dir', path: p })
+      else if (st.isFile() && name.endsWith('.py') && name !== '__init__.py') {
+        roots.set(name.replace(/\.py$/, ''), { kind: 'file', path: p })
+      }
+    }
+  }
+  return roots
+}
+
+/**
+ * Python import 解析：
+ *   from .b import x        → 同包 b.py
+ *   from ..service.b import → 上跳一层再进 service/b.py
+ *   import service.b        → project sourceDir 下的本地包（非第三方）
+ */
+function resolvePy(fromFile, spec, roots) {
+  if (spec.startsWith('.')) {
+    const m = spec.match(/^(\.+)(.*)$/)
+    const dots = m[1].length
+    const rest = m[2].replace(/\./g, '/')
+    let dir = dirname(fromFile)
+    for (let i = 1; i < dots; i++) dir = dirname(dir)
+    const base = rest ? join(dir, rest) : dir
+    return firstExisting([base + '.py', join(base, '__init__.py')])
+  }
+  const parts = spec.split('.')
+  const root = roots.get(parts[0])
+  if (!root) return null
+  if (root.kind === 'file') return parts.length === 1 ? root.path : null
+  const base = join(root.path, ...parts.slice(1))
+  return firstExisting([base + '.py', join(base, '__init__.py')])
+}
+
 function buildGraph(project, dirs, stack) {
   const extSet = stack === 'python' ? PY_EXT : TS_EXT
   const files = []
   for (const d of dirs) files.push(...walkFiles(resolve(project, d), extSet))
+  const pyRoots = stack === 'python' ? pyLocalRoots(project, dirs) : new Map()
   const graph = new Map()
   for (const f of files) {
     const code = readFileSync(f, 'utf8')
     const specs = stack === 'python' ? extractImportsPy(code) : extractImportsTS(code)
     const locals = []
     for (const s of specs) {
-      const r = resolveLocalImport(f, s, extSet)
+      const r = stack === 'python' ? resolvePy(f, s, pyRoots) : resolveLocalImport(f, s, extSet)
       if (r) locals.push(r)
     }
     graph.set(f, { specs, locals })
   }
-  return { files, graph }
+  return { files, graph, pyRoots }
 }
 
 function findCycles(graph) {
@@ -675,7 +725,7 @@ function runOps02(project) {
   try { declared = readJson(depsPath) } catch (e) { return single('读取运行依赖声明', `runtime-deps.json 不是合法 JSON：${e.message}`) }
   const allowed = new Set(Array.isArray(declared.runtime) ? declared.runtime : [])
 
-  const { files, graph } = buildGraph(project, dirs, stack)
+  const { files, graph, pyRoots } = buildGraph(project, dirs, stack)
   const subs = [Object.assign(sub('扫描源码'), { ok: files.length > 0, detail: `${files.length} 个文件（${dirs.join(', ')}）` })]
 
   const undeclared = new Map()
@@ -684,6 +734,7 @@ function runOps02(project) {
       const root = stack === 'python' ? pkgRootPy(spec) : pkgRootTS(spec)
       if (!root) continue
       if (stack === 'python' && PY_BUILTINS.has(root)) continue
+      if (stack === 'python' && pyRoots.has(root)) continue
       if (stack === 'ts' && (NODE_BUILTINS.has(root) || spec.startsWith('node:'))) continue
       if (!allowed.has(root)) {
         if (!undeclared.has(root)) undeclared.set(root, [])

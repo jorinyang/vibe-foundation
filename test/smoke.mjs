@@ -373,6 +373,57 @@ function mcpProject(name, port, mode = 'good') {
   add('STRUCT-01 负向：反向依赖', 'SPEC-STRUCT-01', rev, 1, '不许依赖')
 }
 
+// ── Python 栈（两条语言相关判定）───────────────────────────
+{
+  const pass = base(project('py-ops02-pass'))
+  write(join(pass, 'src/a.py'), 'import os\nimport requests\nfrom .b import b\nprint(b)\n')
+  write(join(pass, 'src/b.py'), 'b = 1\n')
+  write(join(pass, '.vibe/runtime-deps.json'), j({ version: 1, stack: 'python', runtime: ['requests'] }))
+  write(join(pass, '.vibe/config.json'), j({ runtimeDeps: { stack: 'python', sourceDirs: ['src'] } }))
+  add('OPS-02 Python 正向：依赖已声明', 'SPEC-OPS-02', pass, 0, '覆盖全部 import')
+
+  const bad = base(project('py-ops02-bad'))
+  write(join(bad, 'src/a.py'), 'import flask\n')
+  write(join(bad, '.vibe/runtime-deps.json'), j({ version: 1, stack: 'python', runtime: ['requests'] }))
+  write(join(bad, '.vibe/config.json'), j({ runtimeDeps: { stack: 'python', sourceDirs: ['src'] } }))
+  add('OPS-02 Python 负向：第三方未声明', 'SPEC-OPS-02', bad, 1, 'flask')
+
+  const abs = base(project('py-ops02-abs'))
+  write(join(abs, 'src/service/__init__.py'), '')
+  write(join(abs, 'src/service/b.py'), 'b = 1\n')
+  write(join(abs, 'src/a.py'), 'import service.b\n')
+  write(join(abs, '.vibe/runtime-deps.json'), j({ version: 1, stack: 'python', runtime: [] }))
+  write(join(abs, '.vibe/config.json'), j({ runtimeDeps: { stack: 'python', sourceDirs: ['src'] } }))
+  add('OPS-02 Python 正向：本地包不算三方依赖', 'SPEC-OPS-02', abs, 0, '覆盖全部 import')
+}
+
+{
+  const pyStructCfg = { structure: { stack: 'python', sourceDirs: ['src'], layers: { 'src/api': ['src/service'], 'src/service': [] } } }
+
+  const pass = base(project('py-struct-pass'))
+  write(join(pass, 'src/api/__init__.py'), '')
+  write(join(pass, 'src/api/a.py'), 'from ..service.b import b\n')
+  write(join(pass, 'src/service/__init__.py'), '')
+  write(join(pass, 'src/service/b.py'), 'b = 1\n')
+  write(join(pass, '.vibe/config.json'), j(pyStructCfg))
+  add('STRUCT-01 Python 正向：方向合规', 'SPEC-STRUCT-01', pass, 0, '方向合规')
+
+  const cyc = base(project('py-struct-cycle'))
+  write(join(cyc, 'src/a.py'), 'from .b import b\n')
+  write(join(cyc, 'src/b.py'), 'from .a import a\n')
+  write(join(cyc, '.vibe/config.json'), j({ structure: { stack: 'python', sourceDirs: ['src'] } }))
+  add('STRUCT-01 Python 负向：循环依赖', 'SPEC-STRUCT-01', cyc, 1, '循环')
+
+  const rev = base(project('py-struct-reverse'))
+  write(join(rev, 'src/api/__init__.py'), '')
+  write(join(rev, 'src/api/a.py'), 'from ..service.b import b\n')
+  write(join(rev, 'src/api/c.py'), 'c = 1\n')
+  write(join(rev, 'src/service/__init__.py'), '')
+  write(join(rev, 'src/service/b.py'), 'from ..api.c import c\n')
+  write(join(rev, '.vibe/config.json'), j(pyStructCfg))
+  add('STRUCT-01 Python 负向：反向依赖', 'SPEC-STRUCT-01', rev, 1, '不许依赖')
+}
+
 {
   add('GATE-00 正向：注入违规后变红', 'SPEC-GATE-00', goodProject('gate-ok', 4175), 0, '门禁有效')
 
