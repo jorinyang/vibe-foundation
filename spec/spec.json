@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entries": [
     {
       "id": "SPEC-STR-01",
@@ -7,6 +7,13 @@
       "statement": "项目宪法（AGENTS.md）不超过 150 行，且 .vibe/ref.json 声明的 SPEC 版本与底座实际版本一致。",
       "rationale": "宪法超长会让 agent 选择性忽略入口契约；版本不一致会让所有判定基于过期规范，结果不可信。",
       "referenced_by": ["SPEC-STR-01"]
+    },
+    {
+      "id": "SPEC-AUTH-01",
+      "domain": "auth",
+      "statement": "所有对外路由必须在 .vibe/routes.json 中声明；声明必须与实际路由一致；public 路由必须写明公开理由。",
+      "rationale": "未声明的路由会绕过默认拒绝，是 vibecoding 项目最常见的上线事故来源；没有理由的 public 声明等于没有审查。",
+      "referenced_by": ["SPEC-AUTH-01"]
     }
   ]
 }

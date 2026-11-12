@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-AUTH-01",
+  "spec_ref": "SPEC-AUTH-01",
+  "title": "路由清单与实际一致，public 必须带理由",
+  "kind": "declaration",
+  "consumes": ["routes.json", "config.json", "routes.actual.json"],
+  "applies_to": ["*"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 10000
+}

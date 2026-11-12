@@ -1,10 +1,18 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "checks": [
     {
       "id": "SPEC-STR-01",
       "dir": "checks/SPEC-STR-01",
       "kind": "declaration",
+      "title": "项目宪法单屏，且底座引用版本一致",
+      "implemented": true
+    },
+    {
+      "id": "SPEC-AUTH-01",
+      "dir": "checks/SPEC-AUTH-01",
+      "kind": "declaration",
+      "title": "路由清单与实际一致，public 必须带理由",
       "implemented": true
     }
   ]
