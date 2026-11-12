@@ -1,17 +1,17 @@
-{
-  "version": "0.10.0",
+﻿{
+  "version": "0.11.0",
   "checks": [
-    { "id": "SPEC-STR-01", "dir": "checks/SPEC-STR-01", "kind": "declaration", "title": "项目宪法单屏，且底座引用版本一致", "implemented": true },
-    { "id": "SPEC-AUTH-01", "dir": "checks/SPEC-AUTH-01", "kind": "declaration", "title": "路由清单与实际一致，public 必须带理由", "implemented": true },
-    { "id": "SPEC-AUTH-02", "dir": "checks/SPEC-AUTH-02", "kind": "behavior", "title": "越权隔离：A 读不到 B 的资源", "implemented": true },
-    { "id": "SPEC-MCP-01", "dir": "checks/SPEC-MCP-01", "kind": "declaration", "title": "MCP 工具声明合法，能力已在路由清单声明", "implemented": true },
-    { "id": "SPEC-MCP-02", "dir": "checks/SPEC-MCP-02", "kind": "behavior", "title": "身份模式生效：服务身份不得调用户级工具", "implemented": true },
-    { "id": "SPEC-OPS-01", "dir": "checks/SPEC-OPS-01", "kind": "probe", "title": "health / ready 语义分离，ready 含 checks", "implemented": true },
-    { "id": "SPEC-ENV-01", "dir": "checks/SPEC-ENV-01", "kind": "behavior", "title": "缺必需环境变量时启动必须失败", "implemented": true },
-    { "id": "SPEC-OPS-02", "dir": "checks/SPEC-OPS-02", "kind": "static", "title": "import 的包 ⊆ 运行依赖声明", "implemented": true },
-    { "id": "SPEC-OPS-03", "dir": "checks/SPEC-OPS-03", "kind": "static", "title": "运行期依赖必须显式声明", "implemented": true },
-    { "id": "SPEC-SEC-01", "dir": "checks/SPEC-SEC-01", "kind": "static", "title": "仓库无密钥（接入现成扫描器）", "implemented": true },
-    { "id": "SPEC-STRUCT-01", "dir": "checks/SPEC-STRUCT-01", "kind": "static", "title": "无循环依赖，依赖方向合规", "implemented": true },
-    { "id": "SPEC-GATE-00", "dir": "checks/SPEC-GATE-00", "kind": "meta", "title": "门禁元验收：注入违规必须变红", "implemented": true }
+    { "id": "SPEC-STR-01", "dir": "checks/SPEC-STR-01", "kind": "declaration", "title": "椤圭洰瀹硶鍗曞睆锛屼笖搴曞骇寮曠敤鐗堟湰涓€鑷?, "implemented": true },
+    { "id": "SPEC-AUTH-01", "dir": "checks/SPEC-AUTH-01", "kind": "declaration", "title": "璺敱娓呭崟涓庡疄闄呬竴鑷达紝public 蹇呴』甯︾悊鐢?, "implemented": true },
+    { "id": "SPEC-AUTH-02", "dir": "checks/SPEC-AUTH-02", "kind": "behavior", "title": "瓒婃潈闅旂锛欰 璇讳笉鍒?B 鐨勮祫婧?, "implemented": true },
+    { "id": "SPEC-MCP-01", "dir": "checks/SPEC-MCP-01", "kind": "declaration", "title": "MCP 宸ュ叿澹版槑鍚堟硶锛岃祫婧愬煙宸插湪璺敱娓呭崟澹版槑", "implemented": true },
+    { "id": "SPEC-MCP-02", "dir": "checks/SPEC-MCP-02", "kind": "behavior", "title": "韬唤妯″紡鐢熸晥锛氭湇鍔¤韩浠戒笉寰楄皟鐢ㄦ埛绾у伐鍏?, "implemented": true },
+    { "id": "SPEC-OPS-01", "dir": "checks/SPEC-OPS-01", "kind": "probe", "title": "health / ready 璇箟鍒嗙锛宺eady 鍚?checks", "implemented": true },
+    { "id": "SPEC-ENV-01", "dir": "checks/SPEC-ENV-01", "kind": "behavior", "title": "缂哄繀闇€鐜鍙橀噺鏃跺惎鍔ㄥ繀椤诲け璐?, "implemented": true },
+    { "id": "SPEC-OPS-02", "dir": "checks/SPEC-OPS-02", "kind": "static", "title": "import 鐨勫寘 鈯?杩愯渚濊禆澹版槑", "implemented": true },
+    { "id": "SPEC-OPS-03", "dir": "checks/SPEC-OPS-03", "kind": "static", "title": "杩愯鏈熶緷璧栧繀椤绘樉寮忓０鏄?, "implemented": true },
+    { "id": "SPEC-SEC-01", "dir": "checks/SPEC-SEC-01", "kind": "static", "title": "浠撳簱鏃犲瘑閽ワ紙鎺ュ叆鐜版垚鎵弿鍣級", "implemented": true },
+    { "id": "SPEC-STRUCT-01", "dir": "checks/SPEC-STRUCT-01", "kind": "static", "title": "鏃犲惊鐜緷璧栵紝渚濊禆鏂瑰悜鍚堣", "implemented": true },
+    { "id": "SPEC-GATE-00", "dir": "checks/SPEC-GATE-00", "kind": "meta", "title": "闂ㄧ鍏冮獙鏀讹細娉ㄥ叆杩濊蹇呴』鍙樼孩", "implemented": true }
   ]
 }

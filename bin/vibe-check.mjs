@@ -464,7 +464,7 @@ function runMcp01(project) {
   }
   subs.push(decl)
 
-  const align = sub('工具能力在路由清单中已声明')
+  const align = sub('工具资源域在路由清单中已声明')
   const routesPath = join(project, '.vibe', 'routes.json')
   if (!tools) {
     align.detail = '工具声明不合法，跳过对齐比对'
@@ -473,13 +473,15 @@ function runMcp01(project) {
   } else {
     try {
       const rd = readJson(routesPath)
-      const caps = new Set((rd.routes || []).map((r) => `${r.resource}:${r.action}`))
-      const missing = [...new Set(tools.map((t) => `${t.resource}:${t.action}`).filter((c) => !caps.has(c)))]
+      // 资源域对齐：MCP 工具的动作词（create/list/state）与 HTTP 路由动作（read/write）
+      // 不是同一套词汇，强行按 资源:动作 对齐会制造假失败。这里只要求资源域已声明。
+      const resources = new Set((rd.routes || []).map((r) => r.resource).filter(Boolean))
+      const missing = [...new Set(tools.map((t) => t.resource).filter((x) => !resources.has(x)))]
       if (!missing.length) {
         align.ok = true
-        align.detail = `${tools.length} 个工具的能力均已声明`
+        align.detail = `${tools.length} 个工具的资源域均已声明`
       } else {
-        align.detail = `${missing.length} 个工具能力未在路由清单声明（${missing.slice(0, 3).join('、')}）`
+        align.detail = `${missing.length} 个资源域未在路由清单声明（${missing.slice(0, 3).join('、')}）`
       }
     } catch (e) {
       align.detail = `routes.json 不是合法 JSON：${e.message}`

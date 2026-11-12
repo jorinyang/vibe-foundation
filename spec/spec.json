@@ -1,5 +1,5 @@
 {
-  "version": "0.10.0",
+  "version": "0.11.0",
   "entries": [
     {
       "id": "SPEC-AUTH-01",
@@ -48,8 +48,8 @@
     {
       "id": "SPEC-MCP-01",
       "domain": "mcp",
-      "statement": "每个 MCP 工具必须在 .vibe/mcp-tools.json 中声明 auth_mode，且工具能力必须在路由清单中已声明。",
-      "rationale": "MCP 是新的对外入口，不进统一清单就等于绕过了默认拒绝；不声明身份模式就无法判断谁能调。",
+      "statement": "每个 MCP 工具必须在 .vibe/mcp-tools.json 中声明 auth_mode，且工具的资源域必须在路由清单中已声明。",
+      "rationale": "MCP 是新的对外入口，不进统一清单就等于绕过了默认拒绝；不声明身份模式就无法判断谁能调；工具动作词与 HTTP 路由动作词不是同一套词汇，只要求资源域对齐。",
       "planned": false,
       "referenced_by": [
         "SPEC-MCP-01",

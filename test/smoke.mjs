@@ -287,7 +287,7 @@ function mcpProject(name, port, mode = 'good') {
 
 {
   const pass = mcpProject('mcp-pass', 4160)
-  add('MCP-01 正向：声明合法且能力已声明', 'SPEC-MCP-01', pass, 0, '能力均已声明')
+  add('MCP-01 正向：声明合法且资源域已声明', 'SPEC-MCP-01', pass, 0, '资源域均已声明')
   add('MCP-02 正向：服务身份被拒', 'SPEC-MCP-02', pass, 0, '用户身份调用')
 
   const star = mcpProject('mcp-star', 4160)

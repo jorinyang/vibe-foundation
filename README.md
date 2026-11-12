@@ -1,87 +1,75 @@
-# vibe-foundation
+﻿# vibe-foundation
 
-vibecoding 项目的通用工程化底座。
+vibecoding 椤圭洰鐨勯€氱敤宸ョ▼鍖栧簳搴с€?
+搴曞骇鎻愪緵鍥涘眰璧勪骇锛宎gent 鎹鍦ㄦ棦鏈夐」鐩笂鎶娿€岃兘璺戙€嶆帹杩涘埌銆岃兘瀹夊叏涓婄嚎銆嶏細
 
-底座提供四层资产，agent 据此在既有项目上把「能跑」推进到「能安全上线」：
-
-| 层 | 内容 | 形态 |
+| 灞?| 鍐呭 | 褰㈡€?|
 |---|---|---|
-| **L1 标准层** | SPEC 契约 | 纯规范，条目化带 ID |
-| **L2 结构层** | 环境依赖、架构约束 | 规范 + 开发期工具 |
-| **L3 门禁层** | CI 门禁 | 基础判定 + 平台无关命令 |
-| **L4 应用层** | MCP 服务接口、权限管理 | 按项目功能点/权限点改造的协议 |
+| **L1 鏍囧噯灞?* | SPEC 濂戠害 | 绾鑼冿紝鏉＄洰鍖栧甫 ID |
+| **L2 缁撴瀯灞?* | 鐜渚濊禆銆佹灦鏋勭害鏉?| 瑙勮寖 + 寮€鍙戞湡宸ュ叿 |
+| **L3 闂ㄧ灞?* | CI 闂ㄧ | 鍩虹鍒ゅ畾 + 骞冲彴鏃犲叧鍛戒护 |
+| **L4 搴旂敤灞?* | MCP 鏈嶅姟鎺ュ彛銆佹潈闄愮鐞?| 鎸夐」鐩姛鑳界偣/鏉冮檺鐐规敼閫犵殑鍗忚 |
 
-核心不是"给一套模板"，是**给一组可执行、可被违反的判定**。改造落在项目里，不落在底座里。
-
-## 当前状态
-
-SPEC `0.10.0`：**12 条契约全部实现**，五种判定模式（declaration / probe / behavior / static / meta）。
-
-| 判定 | 模式 | 验的是什么 |
+鏍稿績涓嶆槸"缁欎竴濂楁ā鏉?锛屾槸**缁欎竴缁勫彲鎵ц銆佸彲琚繚鍙嶇殑鍒ゅ畾**銆傛敼閫犺惤鍦ㄩ」鐩噷锛屼笉钀藉湪搴曞骇閲屻€?
+## 褰撳墠鐘舵€?
+SPEC `0.11.0`锛?*12 鏉″绾﹀叏閮ㄥ疄鐜?*锛屼簲绉嶅垽瀹氭ā寮忥紙declaration / probe / behavior / static / meta锛夈€?
+| 鍒ゅ畾 | 妯″紡 | 楠岀殑鏄粈涔?|
 |---|---|---|
-| `SPEC-STR-01` | declaration | 项目宪法 ≤150 行；底座版本引用与实际一致 |
-| `SPEC-AUTH-01` | declaration | 路由声明合法；声明与实际一致；public 必须带理由 |
-| `SPEC-AUTH-02` | behavior | 双身份越权隔离；拒绝响应不得泄露他人资源标识 |
-| `SPEC-MCP-01` | declaration | MCP 工具声明 `auth_mode`；能力须已在路由清单声明 |
-| `SPEC-MCP-02` | behavior | 服务身份不得调用户级工具；无身份必须被拒 |
-| `SPEC-OPS-01` | probe | 真起服务，health / ready 语义分离，ready 含 `checks` |
-| `SPEC-ENV-01` | behavior | 缺必需环境变量时启动必须失败 |
-| `SPEC-OPS-02` | static | import 的第三方包 ⊆ 运行依赖声明 |
-| `SPEC-SEC-01` | static | 仓库无密钥（接入现成扫描器，底座不自研） |
-| `SPEC-STRUCT-01` | static | 无循环依赖；跨层调用符合声明的依赖方向 |
-| `SPEC-GATE-00` | meta | 门禁元验收：注入违规必须变红 |
+| `SPEC-STR-01` | declaration | 椤圭洰瀹硶 鈮?50 琛岋紱搴曞骇鐗堟湰寮曠敤涓庡疄闄呬竴鑷?|
+| `SPEC-AUTH-01` | declaration | 璺敱澹版槑鍚堟硶锛涘０鏄庝笌瀹為檯涓€鑷达紱public 蹇呴』甯︾悊鐢?|
+| `SPEC-AUTH-02` | behavior | 鍙岃韩浠借秺鏉冮殧绂伙紱鎷掔粷鍝嶅簲涓嶅緱娉勯湶浠栦汉璧勬簮鏍囪瘑 |
+| `SPEC-MCP-01` | declaration | MCP 宸ュ叿澹版槑 `auth_mode`锛涜兘鍔涢』宸插湪璺敱娓呭崟澹版槑 |
+| `SPEC-MCP-02` | behavior | 鏈嶅姟韬唤涓嶅緱璋冪敤鎴风骇宸ュ叿锛涙棤韬唤蹇呴』琚嫆 |
+| `SPEC-OPS-01` | probe | 鐪熻捣鏈嶅姟锛宧ealth / ready 璇箟鍒嗙锛宺eady 鍚?`checks` |
+| `SPEC-ENV-01` | behavior | 缂哄繀闇€鐜鍙橀噺鏃跺惎鍔ㄥ繀椤诲け璐?|
+| `SPEC-OPS-02` | static | import 鐨勭涓夋柟鍖?鈯?杩愯渚濊禆澹版槑 |
+| `SPEC-SEC-01` | static | 浠撳簱鏃犲瘑閽ワ紙鎺ュ叆鐜版垚鎵弿鍣紝搴曞骇涓嶈嚜鐮旓級 |
+| `SPEC-STRUCT-01` | static | 鏃犲惊鐜緷璧栵紱璺ㄥ眰璋冪敤绗﹀悎澹版槑鐨勪緷璧栨柟鍚?|
+| `SPEC-GATE-00` | meta | 闂ㄧ鍏冮獙鏀讹細娉ㄥ叆杩濊蹇呴』鍙樼孩 |
 
-**49 条端到端用例（正向 + 负向）全绿。**
+**49 鏉＄鍒扮鐢ㄤ緥锛堟鍚?+ 璐熷悜锛夊叏缁裤€?*
 
-其中只有 `SPEC-OPS-02` 与 `SPEC-STRUCT-01` 是语言相关的（TS / Python 各一套实现，两栈都有正负向用例覆盖），其余九条语言无关。
-
-## 用法
+鍏朵腑鍙湁 `SPEC-OPS-02` 涓?`SPEC-STRUCT-01` 鏄瑷€鐩稿叧鐨勶紙TS / Python 鍚勪竴濂楀疄鐜帮紝涓ゆ爤閮芥湁姝ｈ礋鍚戠敤渚嬭鐩栵級锛屽叾浣欎節鏉¤瑷€鏃犲叧銆?
+## 鐢ㄦ硶
 
 ```bash
-# 单条判定
+# 鍗曟潯鍒ゅ畾
 vibe-check SPEC-OPS-01 --project /path/to/project
 
-# 全部判定的 gap 报告（人读）
+# 鍏ㄩ儴鍒ゅ畾鐨?gap 鎶ュ憡锛堜汉璇伙級
 vibe-check plan --project .
 
-# 门禁模式：退出码 + 可选 SARIF
+# 闂ㄧ妯″紡锛氶€€鍑虹爜 + 鍙€?SARIF
 vibe-check all --project . --ci --sarif out.sarif
 
-# 公开面清单（public 路由 + 理由 + 占比告警）
-vibe-check report-public --project .
+# 鍏紑闈㈡竻鍗曪紙public 璺敱 + 鐞嗙敱 + 鍗犳瘮鍛婅锛?vibe-check report-public --project .
 
-# 在项目里生成 .vibe/ 模板
+# 鍦ㄩ」鐩噷鐢熸垚 .vibe/ 妯℃澘
 vibe-check init --project .
 
-# 底座自检（全部正负向用例）
-vibe-check --self-test
+# 搴曞骇鑷锛堝叏閮ㄦ璐熷悜鐢ㄤ緥锛?vibe-check --self-test
 ```
 
-退出码：`0` 通过 / `1` 失败 / `2` 配置错误 / `3` 判定崩溃。
+閫€鍑虹爜锛歚0` 閫氳繃 / `1` 澶辫触 / `2` 閰嶇疆閿欒 / `3` 鍒ゅ畾宕╂簝銆?
+### 鍒ゅ畾鐘舵€?
+`PASS` / `FAIL` / `SKIP` / `CRASH` / `CONFIG`銆?*娌℃湁 UNKNOWN** 鈥斺€?涓嶇煡閬撳氨鏄け璐ャ€?
+- `SKIP` = 鏈夋湁鏁堟湡鍐呯殑璞佸厤锛坄.vibe/override/<SPEC-ID>.md`锛岄渶璐熻矗浜?+ 鍒版湡鏃?鈮?0 澶╋級
+- 璞佸厤杩囨湡鑷姩鍙樺洖 `FAIL`锛涜眮鍏嶄笉绠?`PASS`
 
-### 判定状态
+## 椤圭洰渚ц鏀剧殑鏂囦欢
 
-`PASS` / `FAIL` / `SKIP` / `CRASH` / `CONFIG`。**没有 UNKNOWN** —— 不知道就是失败。
-
-- `SKIP` = 有有效期内的豁免（`.vibe/override/<SPEC-ID>.md`，需负责人 + 到期日 ≤90 天）
-- 豁免过期自动变回 `FAIL`；豁免不算 `PASS`
-
-## 项目侧要放的文件
-
-`.vibe/` 目录（`vibe-check init` 可生成模板）：
-
-| 文件 | 作用 |
+`.vibe/` 鐩綍锛坄vibe-check init` 鍙敓鎴愭ā鏉匡級锛?
+| 鏂囦欢 | 浣滅敤 |
 |---|---|
-| `ref.json` | `{"spec":"0.10.0"}` — 锁定的底座版本 |
-| `config.json` | 全局配置，见下 |
-| `routes.json` | 路由声明：`public` 必带 `reason`（≥8 字），`protected` 必带 `resource/action/subjects` |
-| `routes.actual.json` | 实际路由表（`routeSource.type = "file"` 时用） |
-| `mcp-tools.json` | MCP 工具声明：`auth_mode` / `service_scope` / `subjects` |
-| `runtime-deps.json` | 运行期依赖声明 |
-| `override/<ID>.md` | 有期限的豁免 |
+| `ref.json` | `{"spec":"0.11.0"}` 鈥?閿佸畾鐨勫簳搴х増鏈?|
+| `config.json` | 鍏ㄥ眬閰嶇疆锛岃涓?|
+| `routes.json` | 璺敱澹版槑锛歚public` 蹇呭甫 `reason`锛堚墺8 瀛楋級锛宍protected` 蹇呭甫 `resource/action/subjects` |
+| `routes.actual.json` | 瀹為檯璺敱琛紙`routeSource.type = "file"` 鏃剁敤锛?|
+| `mcp-tools.json` | MCP 宸ュ叿澹版槑锛歚auth_mode` / `service_scope` / `subjects` |
+| `runtime-deps.json` | 杩愯鏈熶緷璧栧０鏄?|
+| `override/<ID>.md` | 鏈夋湡闄愮殑璞佸厤 |
 
-`config.json` 的段：
-
+`config.json` 鐨勬锛?
 ```jsonc
 {
   "routeSource": { "type": "file" | "endpoint", "path": "...", "url": "..." },
@@ -96,30 +84,21 @@ vibe-check --self-test
 }
 ```
 
-## 目录
+## 鐩綍
 
 ```
-bin/vibe-check.mjs   CLI：check / plan / all / report-public / init / --self-test
-checks/              判定（每个 SPEC-ID 一个目录：meta / positive / negative / fix）
-spec/spec.json       SPEC 契约（唯一真源）
-spec/build-index.mjs 反向索引生成 + 死条款检测
-ci/                  平台无关门禁封装（github-actions.yml / vibe-check.sh）
-test/smoke.mjs       端到端用例（正向 + 负向）
-test/guard.mjs       防退化检查（不许出现绝对路径与本地工作副本引用）
+bin/vibe-check.mjs   CLI锛歝heck / plan / all / report-public / init / --self-test
+checks/              鍒ゅ畾锛堟瘡涓?SPEC-ID 涓€涓洰褰曪細meta / positive / negative / fix锛?spec/spec.json       SPEC 濂戠害锛堝敮涓€鐪熸簮锛?spec/build-index.mjs 鍙嶅悜绱㈠紩鐢熸垚 + 姝绘潯娆炬娴?ci/                  骞冲彴鏃犲叧闂ㄧ灏佽锛坓ithub-actions.yml / vibe-check.sh锛?test/smoke.mjs       绔埌绔敤渚嬶紙姝ｅ悜 + 璐熷悜锛?test/guard.mjs       闃查€€鍖栨鏌ワ紙涓嶈鍑虹幇缁濆璺緞涓庢湰鍦板伐浣滃壇鏈紩鐢級
 ```
 
-## 开发
-
+## 寮€鍙?
 ```bash
-npm run build-spec   # 重新生成 SPEC 反向索引，检测死条款
-npm test             # 防退化检查 + 全部端到端用例
-```
+npm run build-spec   # 閲嶆柊鐢熸垚 SPEC 鍙嶅悜绱㈠紩锛屾娴嬫鏉℃
+npm test             # 闃查€€鍖栨鏌?+ 鍏ㄩ儴绔埌绔敤渚?```
 
-## 设计文档
+## 璁捐鏂囨。
 
-CLARIFY / BRIEF / ARCHITECTURE / STANDARDS / TASKS 五份，维护在知识库 `Research/vibe/`；
-另有两份交付文档：`AUTHZ_INTEGRATION.md`（四家 SSO 接入规范）、`RETROFIT_PLAYBOOK.md`（存量改造手册）。
-
+CLARIFY / BRIEF / ARCHITECTURE / STANDARDS / TASKS 浜斾唤锛岀淮鎶ゅ湪鐭ヨ瘑搴?`Research/vibe/`锛?鍙︽湁涓や唤浜や粯鏂囨。锛歚AUTHZ_INTEGRATION.md`锛堝洓瀹?SSO 鎺ュ叆瑙勮寖锛夈€乣RETROFIT_PLAYBOOK.md`锛堝瓨閲忔敼閫犳墜鍐岋級銆?
 ## License
 
-Apache License 2.0 — 见 [LICENSE](LICENSE)。
+Apache License 2.0 鈥?瑙?[LICENSE](LICENSE)銆?
