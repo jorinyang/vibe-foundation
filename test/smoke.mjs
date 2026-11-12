@@ -358,12 +358,22 @@ function mcpProject(name, port, mode = 'good') {
   write(join(empty, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: [] }))
   write(join(empty, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['missing'] } }))
   add('OPS-02 负向：扫不到源码', 'SPEC-OPS-02', empty, 1, '扫描源码')
+}
 
-  const noManifest = base(project('ops02-nomanifest'))
-  write(join(noManifest, 'src/a.ts'), 'export const a = 1\n')
-  write(join(noManifest, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: [] }))
-  write(join(noManifest, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['src'] } }))
-  add('OPS-02 负向：没有依赖声明文件', 'SPEC-OPS-02', noManifest, 1, '未找到')
+{
+  const pass = base(project('ops03-pass'))
+  write(join(pass, 'package.json'), j({ name: 'x', version: '0.0.0', dependencies: {} }))
+  write(join(pass, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['src'] } }))
+  add('OPS-03 正向：有 package.json', 'SPEC-OPS-03', pass, 0, '找到 package.json')
+
+  const fail = base(project('ops03-fail'))
+  write(join(fail, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['src'] } }))
+  add('OPS-03 负向：没有任何 manifest', 'SPEC-OPS-03', fail, 1, '未找到')
+
+  const py = base(project('ops03-py'))
+  write(join(py, 'pyproject.toml'), '[project]\nname = "x"\n')
+  write(join(py, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'python', sourceDirs: ['src'] } }))
+  add('OPS-03 Python 正向：有 pyproject.toml', 'SPEC-OPS-03', py, 0, 'pyproject.toml')
 }
 
 {

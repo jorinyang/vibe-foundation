@@ -1,5 +1,5 @@
 {
-  "version": "0.9.0",
+  "version": "0.10.0",
   "checks": [
     { "id": "SPEC-STR-01", "dir": "checks/SPEC-STR-01", "kind": "declaration", "title": "项目宪法单屏，且底座引用版本一致", "implemented": true },
     { "id": "SPEC-AUTH-01", "dir": "checks/SPEC-AUTH-01", "kind": "declaration", "title": "路由清单与实际一致，public 必须带理由", "implemented": true },
@@ -9,6 +9,7 @@
     { "id": "SPEC-OPS-01", "dir": "checks/SPEC-OPS-01", "kind": "probe", "title": "health / ready 语义分离，ready 含 checks", "implemented": true },
     { "id": "SPEC-ENV-01", "dir": "checks/SPEC-ENV-01", "kind": "behavior", "title": "缺必需环境变量时启动必须失败", "implemented": true },
     { "id": "SPEC-OPS-02", "dir": "checks/SPEC-OPS-02", "kind": "static", "title": "import 的包 ⊆ 运行依赖声明", "implemented": true },
+    { "id": "SPEC-OPS-03", "dir": "checks/SPEC-OPS-03", "kind": "static", "title": "运行期依赖必须显式声明", "implemented": true },
     { "id": "SPEC-SEC-01", "dir": "checks/SPEC-SEC-01", "kind": "static", "title": "仓库无密钥（接入现成扫描器）", "implemented": true },
     { "id": "SPEC-STRUCT-01", "dir": "checks/SPEC-STRUCT-01", "kind": "static", "title": "无循环依赖，依赖方向合规", "implemented": true },
     { "id": "SPEC-GATE-00", "dir": "checks/SPEC-GATE-00", "kind": "meta", "title": "门禁元验收：注入违规必须变红", "implemented": true }

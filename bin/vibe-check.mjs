@@ -742,21 +742,6 @@ function runOps02(project) {
   const { files, graph, pyRoots } = buildGraph(project, dirs, stack)
   const subs = [Object.assign(sub('扫描源码'), { ok: files.length > 0, detail: `${files.length} 个文件（${dirs.join(', ')}）` })]
 
-  // 子判定：项目必须存在显式依赖声明文件
-  // 否则「import ⊆ 声明」在零声明项目上平凡成立（真实项目验证发现，见 ADR-003）
-  const manifests = rd.manifest
-    ? [].concat(rd.manifest)
-    : (stack === 'python' ? ['pyproject.toml', 'requirements.txt'] : ['package.json'])
-  const manifestHit = manifests.find((m) => existsSync(join(project, m)))
-  const manifestSub = sub('项目存在显式依赖声明')
-  if (manifestHit) {
-    manifestSub.ok = true
-    manifestSub.detail = `找到 ${manifestHit}`
-  } else {
-    manifestSub.detail = `未找到 ${manifests.join(' / ')}（未声明 ≠ 不需要，需显式声明，可为空）`
-  }
-  subs.push(manifestSub)
-
   const undeclared = new Map()
   for (const f of files) {
     for (const spec of graph.get(f).specs) {
@@ -943,6 +928,29 @@ async function runGate00(project) {
   return { ok: subs.every((x) => x.ok), subs }
 }
 
+// ── SPEC-OPS-03：运行期依赖必须显式声明 ─────────────────────────
+function runOps03(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return single('读取 .vibe/config.json', cfgRes.error)
+  const rd = cfgRes.config.runtimeDeps
+  if (!rd) return single('读取 runtimeDeps 配置', 'config.json 缺少 runtimeDeps')
+
+  const stack = rd.stack === 'python' ? 'python' : 'ts'
+  const manifests = rd.manifest
+    ? [].concat(rd.manifest)
+    : (stack === 'python' ? ['pyproject.toml', 'requirements.txt'] : ['package.json'])
+
+  const hit = manifests.find((m) => existsSync(join(project, m)))
+  const s = sub('存在显式依赖声明文件')
+  if (hit) {
+    s.ok = true
+    s.detail = `找到 ${hit}`
+  } else {
+    s.detail = `未找到 ${manifests.join(' / ')}（未声明 ≠ 不需要，需显式声明，可为空）`
+  }
+  return { ok: s.ok, subs: [s] }
+}
+
 const RUNNERS = {
   'SPEC-STR-01': runStr01,
   'SPEC-AUTH-01': runAuth01,
@@ -953,6 +961,7 @@ const RUNNERS = {
   'SPEC-MCP-02': runMcp02,
   'SPEC-OPS-01': runOps01,
   'SPEC-OPS-02': runOps02,
+  'SPEC-OPS-03': runOps03,
   'SPEC-SEC-01': runSec01,
   'SPEC-STRUCT-01': runStruct01,
 }
