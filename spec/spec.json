@@ -1,0 +1,12 @@
+{
+  "version": "0.1.0",
+  "entries": [
+    {
+      "id": "SPEC-STR-01",
+      "domain": "str",
+      "statement": "项目宪法（AGENTS.md）不超过 150 行，且 .vibe/ref.json 声明的 SPEC 版本与底座实际版本一致。",
+      "rationale": "宪法超长会让 agent 选择性忽略入口契约；版本不一致会让所有判定基于过期规范，结果不可信。",
+      "referenced_by": ["SPEC-STR-01"]
+    }
+  ]
+}

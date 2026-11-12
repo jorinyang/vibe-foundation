@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-STR-01",
+  "spec_ref": "SPEC-STR-01",
+  "title": "项目宪法单屏，且底座引用版本与实际版本一致",
+  "kind": "declaration",
+  "consumes": ["ref.json", "constitution"],
+  "applies_to": ["*"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 10000
+}

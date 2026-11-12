@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "checks": [
+    {
+      "id": "SPEC-STR-01",
+      "dir": "checks/SPEC-STR-01",
+      "kind": "declaration",
+      "implemented": true
+    }
+  ]
+}
