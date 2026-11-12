@@ -398,11 +398,158 @@ async function runOps01(project) {
   return { ok: subs.every((s) => s.ok), subs }
 }
 
+// ── SPEC-MCP-01：MCP 工具声明合法 + 能力在路由清单已声明 ─────────
+function validateMcpTools(data) {
+  const errs = []
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return ['mcp-tools.json 顶层不是对象']
+  if (!Array.isArray(data.tools)) return ['tools 不是数组']
+  if (data.tools.length === 0) errs.push('tools 为空')
+  const seen = new Set()
+  data.tools.forEach((t, i) => {
+    const at = `第 ${i + 1} 个工具`
+    if (!t || typeof t !== 'object') { errs.push(`${at} 不是对象`); return }
+    const name = String(t.name || '')
+    if (!name) { errs.push(`${at} 缺少 name`); return }
+    if (seen.has(name)) errs.push(`${name} 重复`)
+    seen.add(name)
+    if (!t.resource) errs.push(`${name} 缺少 resource`)
+    if (!t.action) errs.push(`${name} 缺少 action`)
+
+    if (t.auth_mode === 'service') {
+      if (!Array.isArray(t.service_scope) || t.service_scope.length === 0) errs.push(`${name} 为 service 但缺 service_scope`)
+      else if (t.service_scope.some((s) => String(s) === '*' || String(s).endsWith(':*'))) {
+        errs.push(`${name} 的 service_scope 不得为通配`)
+      }
+    } else if (t.auth_mode === 'user') {
+      if (!Array.isArray(t.subjects) || t.subjects.length === 0) errs.push(`${name} 为 user 但 subjects 为空`)
+    } else {
+      errs.push(`${name} 的 auth_mode 只能是 service / user`)
+    }
+  })
+  return errs
+}
+
+function runMcp01(project) {
+  const subs = []
+
+  const decl = sub('mcp-tools.json 声明合法')
+  let tools = null
+  const p = join(project, '.vibe', 'mcp-tools.json')
+  if (!existsSync(p)) {
+    decl.detail = '缺少 .vibe/mcp-tools.json'
+  } else {
+    try {
+      const data = readJson(p)
+      const errs = validateMcpTools(data)
+      if (errs.length) decl.detail = errs.length > 3 ? `${errs.slice(0, 3).join('；')} 等 ${errs.length} 项` : errs.join('；')
+      else { decl.ok = true; tools = data.tools; decl.detail = `${tools.length} 个工具声明合法` }
+    } catch (e) {
+      decl.detail = `mcp-tools.json 不是合法 JSON：${e.message}`
+    }
+  }
+  subs.push(decl)
+
+  const align = sub('工具能力在路由清单中已声明')
+  const routesPath = join(project, '.vibe', 'routes.json')
+  if (!tools) {
+    align.detail = '工具声明不合法，跳过对齐比对'
+  } else if (!existsSync(routesPath)) {
+    align.detail = '缺少 .vibe/routes.json'
+  } else {
+    try {
+      const rd = readJson(routesPath)
+      const caps = new Set((rd.routes || []).map((r) => `${r.resource}:${r.action}`))
+      const missing = [...new Set(tools.map((t) => `${t.resource}:${t.action}`).filter((c) => !caps.has(c)))]
+      if (!missing.length) {
+        align.ok = true
+        align.detail = `${tools.length} 个工具的能力均已声明`
+      } else {
+        align.detail = `${missing.length} 个工具能力未在路由清单声明（${missing.slice(0, 3).join('、')}）`
+      }
+    } catch (e) {
+      align.detail = `routes.json 不是合法 JSON：${e.message}`
+    }
+  }
+  subs.push(align)
+
+  return { ok: subs.every((s) => s.ok), subs }
+}
+
+// ── SPEC-MCP-02：身份模式生效（服务身份不得调用户级工具）────────
+async function runMcp02(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return single('读取 .vibe/config.json', cfgRes.error)
+  const cfg = cfgRes.config
+  const probe = cfg.mcpProbe
+  if (!probe) return single('读取 mcpProbe 配置', 'config.json 缺少 mcpProbe')
+  if (!probe.toolName) return single('读取 mcpProbe 配置', 'mcpProbe 缺少 toolName')
+  if (!cfg.service || !cfg.service.startCommand) return single('读取 service 配置', 'config.json 缺少 service.startCommand')
+
+  const started = await startService(project, cfg.service)
+  if (started.error) return single('服务启动', started.error)
+
+  const subs = [Object.assign(sub('服务启动'), { ok: true, detail: cfg.service.baseUrl })]
+  const base = String(cfg.service.baseUrl).replace(/\/$/, '')
+  const url = base + String(probe.path || '/mcp')
+  const header = String(probe.tokenHeader || 'authorization')
+  const deny = Array.isArray(probe.denyStatus) && probe.denyStatus.length ? probe.denyStatus : [401, 403]
+  const toolName = String(probe.toolName)
+  const toolArgs = probe.arguments || {}
+
+  const callMcp = async (token) => {
+    const headers = { 'content-type': 'application/json' }
+    if (token) headers[header] = String(token)
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: toolName, arguments: toolArgs } }),
+      signal: AbortSignal.timeout(8000),
+    })
+    const text = await res.text()
+    let body = null
+    try { body = JSON.parse(text) } catch { body = null }
+    const denied = deny.includes(res.status) || Boolean(body && body.error)
+    return { status: res.status, body, text, denied }
+  }
+
+  try {
+    const svc = sub(`服务身份调 ${toolName} → 拒绝`)
+    try {
+      const r = await callMcp(probe.serviceToken)
+      svc.ok = r.denied
+      svc.detail = `状态码 ${r.status}${r.body && r.body.error ? ' + JSON-RPC error' : ''}${r.denied ? '' : '（未被拒绝）'}`
+    } catch (e) { svc.detail = `请求失败：${e.message}` }
+    subs.push(svc)
+
+    const anon = sub('无身份调用 → 拒绝')
+    try {
+      const r = await callMcp(null)
+      anon.ok = r.denied
+      anon.detail = `状态码 ${r.status}${r.denied ? '' : '（未被拒绝）'}`
+    } catch (e) { anon.detail = `请求失败：${e.message}` }
+    subs.push(anon)
+
+    const usr = sub('用户身份调用 → 不被拒')
+    try {
+      const r = await callMcp(probe.userToken)
+      usr.ok = !r.denied
+      usr.detail = `状态码 ${r.status}`
+    } catch (e) { usr.detail = `请求失败：${e.message}` }
+    subs.push(usr)
+  } finally {
+    await started.stop()
+  }
+
+  return { ok: subs.every((s) => s.ok), subs }
+}
+
 const RUNNERS = {
   'SPEC-STR-01': runStr01,
   'SPEC-AUTH-01': runAuth01,
   'SPEC-AUTH-02': runAuthz02,
   'SPEC-OPS-01': runOps01,
+  'SPEC-MCP-01': runMcp01,
+  'SPEC-MCP-02': runMcp02,
 }
 
 // ── 豁免与评估 ─────────────────────────────────────────────

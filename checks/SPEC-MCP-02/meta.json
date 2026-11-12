@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-MCP-02",
+  "spec_ref": "SPEC-MCP-02",
+  "title": "身份模式生效：服务身份不得调用户级工具",
+  "kind": "behavior",
+  "consumes": ["config.json"],
+  "applies_to": ["*"],
+  "identity": "service",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 60000
+}

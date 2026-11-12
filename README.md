@@ -15,16 +15,18 @@ vibecoding 项目的通用工程化底座。
 
 ## 当前状态
 
-SPEC `0.5.0`：11 条契约（4 条已实现、7 条待实现），四种判定模式全打通。
+SPEC `0.6.0`：11 条契约（6 条已实现、5 条待实现），四种判定模式全打通。
 
 | 判定 | 模式 | 验的是什么 |
 |---|---|---|
 | `SPEC-STR-01` | declaration | 项目宪法 ≤150 行；底座版本引用与实际一致 |
 | `SPEC-AUTH-01` | declaration | 路由声明合法；声明与实际路由一致；public 必须带理由 |
 | `SPEC-AUTH-02` | behavior | 双身份越权隔离；拒绝响应不得泄露他人资源标识 |
+| `SPEC-MCP-01` | declaration | MCP 工具声明 `auth_mode`；能力须已在路由清单声明 |
+| `SPEC-MCP-02` | behavior | 服务身份不得调用户级工具；无身份必须被拒 |
 | `SPEC-OPS-01` | probe | 真起服务，health / ready 语义分离，ready 含 `checks` |
 
-22 条端到端用例（正向 + 负向）全绿。
+27 条端到端用例（正向 + 负向）全绿。
 
 ## 用法
 

@@ -26,6 +26,17 @@ const ORDERS = {
   'ord-bbb': { id: 'ord-bbb', owner: 'b', item: 'B 的订单' },
 }
 
+const MCP_TOOLS = {
+  update_order: { auth_mode: 'user' },
+  get_public_menu: { auth_mode: 'service' },
+}
+
+const TOKENS = {
+  'Bearer svc-token': 'service',
+  'Bearer token-a': 'user',
+  'Bearer token-b': 'user',
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${port}`)
   const send = (code, obj) => {
@@ -43,6 +54,29 @@ const server = createServer((req, res) => {
   }
 
   if (url.pathname === '/__vibe/routes') return send(200, { routes: ROUTES })
+
+  if (url.pathname === '/mcp' && req.method === 'POST') {
+    let raw = ''
+    req.on('data', (c) => { raw += c })
+    req.on('end', () => {
+      const identity = TOKENS[req.headers.authorization || '']
+      if (!identity) {
+        return send(401, { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'unauthorized' } })
+      }
+      let body = {}
+      try { body = JSON.parse(raw) } catch { body = {} }
+      const id = body.id ?? 1
+      const name = body && body.params && body.params.name
+      const tool = MCP_TOOLS[name]
+      if (!tool) return send(200, { jsonrpc: '2.0', id, error: { code: -32602, message: 'unknown tool' } })
+      if (tool.auth_mode === 'user' && identity === 'service') {
+        if (mode === 'mcp-allow-service') return send(200, { jsonrpc: '2.0', id, result: { ok: true } })
+        return send(403, { jsonrpc: '2.0', id, error: { code: -32003, message: 'forbidden' } })
+      }
+      return send(200, { jsonrpc: '2.0', id, result: { ok: true } })
+    })
+    return
+  }
 
   if (url.pathname.startsWith('/api/orders/')) {
     const id = decodeURIComponent(url.pathname.slice('/api/orders/'.length))

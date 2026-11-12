@@ -160,14 +160,35 @@ const AUTHZ = {
 }
 
 const READY_ROUTE = { method: 'GET', path: '/ready', visibility: 'public', reason: '就绪探针，只反映依赖状态' }
-const FULL_ROUTES = [HEALTH_ROUTE, READY_ROUTE, ORDER_ROUTE]
+const MENU_ROUTE = { method: 'GET', path: '/api/menu', visibility: 'public', reason: '公开菜单数据，不含用户信息', resource: 'menu', action: 'read' }
+const ORDER_WRITE_ROUTE = { method: 'POST', path: '/api/orders/:id', visibility: 'protected', resource: 'order', action: 'write', subjects: ['owner'] }
+const FULL_ROUTES = [HEALTH_ROUTE, READY_ROUTE, ORDER_ROUTE, MENU_ROUTE, ORDER_WRITE_ROUTE]
 
-/** 四条判定都能过的项目 */
+const FULL_MCP_TOOLS = {
+  version: 1,
+  tools: [
+    { name: 'get_public_menu', auth_mode: 'service', resource: 'menu', action: 'read', service_scope: ['menu:read'] },
+    { name: 'update_order', auth_mode: 'user', resource: 'order', action: 'write', subjects: ['owner'] },
+  ],
+}
+
+/** 六条判定都能过的项目 */
 function goodProject(name, port, mode = 'good') {
   const dir = base(project(name))
-  serviceConfig(dir, port, mode, 8000, AUTHZ)
+  serviceConfig(dir, port, mode, 8000, {
+    ...AUTHZ,
+    mcpProbe: {
+      path: '/mcp',
+      toolName: 'update_order',
+      serviceToken: 'Bearer svc-token',
+      userToken: 'Bearer token-a',
+      tokenHeader: 'authorization',
+      denyStatus: [401, 403],
+    },
+  })
   writeRoutes(dir, FULL_ROUTES)
   writeActual(dir, strip(FULL_ROUTES))
+  write(join(dir, '.vibe', 'mcp-tools.json'), j(FULL_MCP_TOOLS))
   return dir
 }
 
@@ -210,6 +231,59 @@ function goodProject(name, port, mode = 'good') {
     service: { startCommand: 'node -e "setTimeout(()=>{},60000)"', baseUrl: 'http://127.0.0.1:4124', startupTimeoutMs: 2000 },
   }))
   add('OPS-01 负向：端口未监听', 'SPEC-OPS-01', noListen, 1, '未在')
+}
+
+// ── SPEC-MCP-01 / 02 ─────────────────────────────────────
+const MCP_ROUTES = [
+  { method: 'GET', path: '/api/menu', visibility: 'public', reason: '公开菜单数据，不含用户信息', resource: 'menu', action: 'read' },
+  { method: 'POST', path: '/api/orders/:id', visibility: 'protected', resource: 'order', action: 'write', subjects: ['owner'] },
+]
+const MCP_TOOLS = {
+  version: 1,
+  tools: [
+    { name: 'get_public_menu', auth_mode: 'service', resource: 'menu', action: 'read', service_scope: ['menu:read'] },
+    { name: 'update_order', auth_mode: 'user', resource: 'order', action: 'write', subjects: ['owner'] },
+  ],
+}
+
+function mcpProject(name, port, mode = 'good') {
+  const dir = base(project(name))
+  writeRoutes(dir, MCP_ROUTES)
+  write(join(dir, '.vibe', 'mcp-tools.json'), j(MCP_TOOLS))
+  serviceConfig(dir, port, mode, 8000, {
+    mcpProbe: {
+      path: '/mcp',
+      toolName: 'update_order',
+      serviceToken: 'Bearer svc-token',
+      userToken: 'Bearer token-a',
+      tokenHeader: 'authorization',
+      denyStatus: [401, 403],
+    },
+  })
+  return dir
+}
+
+{
+  const pass = mcpProject('mcp-pass', 4160)
+  add('MCP-01 正向：声明合法且能力已声明', 'SPEC-MCP-01', pass, 0, '能力均已声明')
+  add('MCP-02 正向：服务身份被拒', 'SPEC-MCP-02', pass, 0, '用户身份调用')
+
+  const star = mcpProject('mcp-star', 4160)
+  write(join(star, '.vibe', 'mcp-tools.json'), j({
+    version: 1,
+    tools: [{ name: 'x', auth_mode: 'service', resource: 'menu', action: 'read', service_scope: ['*'] }],
+  }))
+  add('MCP-01 负向：service_scope 通配', 'SPEC-MCP-01', star, 1, '通配')
+
+  const cap = mcpProject('mcp-cap', 4160)
+  write(join(cap, '.vibe', 'mcp-tools.json'), j({
+    version: 1,
+    tools: [{ name: 'refund', auth_mode: 'user', resource: 'refund', action: 'write', subjects: ['admin'] }],
+  }))
+  add('MCP-01 负向：能力未在路由声明', 'SPEC-MCP-01', cap, 1, '未在路由清单声明')
+
+  const bad = mcpProject('mcp-allow-service', 4161, 'mcp-allow-service')
+  add('MCP-02 负向：服务身份可调用户工具', 'SPEC-MCP-02', bad, 1, '未被拒绝')
 }
 
 // ── 汇总命令 / 豁免 / 公开面 ───────────────────────────────

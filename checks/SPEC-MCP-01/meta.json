@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-MCP-01",
+  "spec_ref": "SPEC-MCP-01",
+  "title": "MCP 工具声明合法，能力已在路由清单声明",
+  "kind": "declaration",
+  "consumes": ["mcp-tools.json", "routes.json"],
+  "applies_to": ["*"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 10000
+}
