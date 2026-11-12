@@ -68,8 +68,9 @@ function serviceConfig(dir, port, mode, timeout = 8000, extra = {}) {
   }))
 }
 
-function run(id, dir) {
-  const r = spawnSync(process.execPath, [BIN, id, '--project', dir], { encoding: 'utf8' })
+function run(args, dir) {
+  const argv = Array.isArray(args) ? args : [args]
+  const r = spawnSync(process.execPath, [BIN, ...argv, '--project', dir], { encoding: 'utf8' })
   return { code: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
 }
 
@@ -157,6 +158,19 @@ const AUTHZ = {
     denyStatus: [403, 404],
   },
 }
+
+const READY_ROUTE = { method: 'GET', path: '/ready', visibility: 'public', reason: '就绪探针，只反映依赖状态' }
+const FULL_ROUTES = [HEALTH_ROUTE, READY_ROUTE, ORDER_ROUTE]
+
+/** 四条判定都能过的项目 */
+function goodProject(name, port, mode = 'good') {
+  const dir = base(project(name))
+  serviceConfig(dir, port, mode, 8000, AUTHZ)
+  writeRoutes(dir, FULL_ROUTES)
+  writeActual(dir, strip(FULL_ROUTES))
+  return dir
+}
+
 {
   const pass = base(project('authz-pass'))
   serviceConfig(pass, 4130, 'good', 8000, AUTHZ)
@@ -196,6 +210,38 @@ const AUTHZ = {
     service: { startCommand: 'node -e "setTimeout(()=>{},60000)"', baseUrl: 'http://127.0.0.1:4124', startupTimeoutMs: 2000 },
   }))
   add('OPS-01 负向：端口未监听', 'SPEC-OPS-01', noListen, 1, '未在')
+}
+
+// ── 汇总命令 / 豁免 / 公开面 ───────────────────────────────
+{
+  const good = goodProject('agg-good', 4140)
+  add('aggregate：四条全过', ['all'], good, 0, 'FAIL 0')
+
+  const bad = goodProject('agg-fail', 4141)
+  writeActual(bad, strip([...FULL_ROUTES, { method: 'POST', path: '/api/admin' }]))
+  add('aggregate：有失败则退出 1', ['all'], bad, 1, 'FAIL 1')
+
+  add('report-public：公开比例告警', ['report-public'], good, 0, '公开面清单')
+}
+
+{
+  const ov = goodProject('agg-override', 4142)
+  writeActual(ov, strip([...FULL_ROUTES, { method: 'POST', path: '/api/admin' }]))
+  write(join(ov, '.vibe', 'override', 'SPEC-AUTH-01.md'),
+    '# 豁免 SPEC-AUTH-01\n\n- 负责人：测试\n- 到期日：2099-01-01\n- 理由：临时放行\n')
+  add('override：有效豁免 → SKIP', ['all'], ov, 0, 'SKIP 1')
+
+  const expired = goodProject('agg-override-expired', 4143)
+  writeActual(expired, strip([...FULL_ROUTES, { method: 'POST', path: '/api/admin' }]))
+  write(join(expired, '.vibe', 'override', 'SPEC-AUTH-01.md'),
+    '# 豁免 SPEC-AUTH-01\n\n- 负责人：测试\n- 到期日：2020-01-01\n')
+  add('override：过期豁免 → 仍失败', ['all'], expired, 1, '过期')
+}
+
+// ── init ──────────────────────────────────────────────────
+{
+  const empty = project('init-empty')
+  add('init：生成 .vibe 模板', ['init'], empty, 0, '已创建')
 }
 
 // ── 主流程 ─────────────────────────────────────────────────

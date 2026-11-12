@@ -1,33 +1,105 @@
 {
-  "version": "0.4.0",
+  "version": "0.5.0",
   "entries": [
-    {
-      "id": "SPEC-STR-01",
-      "domain": "str",
-      "statement": "项目宪法（AGENTS.md）不超过 150 行，且 .vibe/ref.json 声明的 SPEC 版本与底座实际版本一致。",
-      "rationale": "宪法超长会让 agent 选择性忽略入口契约；版本不一致会让所有判定基于过期规范，结果不可信。",
-      "referenced_by": ["SPEC-STR-01"]
-    },
     {
       "id": "SPEC-AUTH-01",
       "domain": "auth",
       "statement": "所有对外路由必须在 .vibe/routes.json 中声明；声明必须与实际路由一致；public 路由必须写明公开理由。",
       "rationale": "未声明的路由会绕过默认拒绝，是 vibecoding 项目最常见的上线事故来源；没有理由的 public 声明等于没有审查。",
-      "referenced_by": ["SPEC-AUTH-01"]
+      "planned": false,
+      "referenced_by": [
+        "SPEC-AUTH-01",
+        "bin/vibe-check.mjs"
+      ]
     },
     {
       "id": "SPEC-AUTH-02",
       "domain": "auth",
       "statement": "用户 A 不得读到用户 B 的资源：越权请求必须返回拒绝状态；拒绝响应中不得出现他人资源标识。",
       "rationale": "默认拒绝只保证未登录被拦；越权才是上线后最常见的真实事故，且「返回 403 但把数据一起带出来」极难被发现。",
-      "referenced_by": ["SPEC-AUTH-02"]
+      "planned": false,
+      "referenced_by": [
+        "SPEC-AUTH-02",
+        "bin/vibe-check.mjs"
+      ]
+    },
+    {
+      "id": "SPEC-ENV-01",
+      "domain": "env",
+      "statement": "服务启动时必须校验环境变量 schema，缺少必需变量即启动失败，不得用默认值静默继续。",
+      "rationale": "缺变量用默认值跑起来，会把配置错误推到运行期才炸，且现场看不出是配置问题。",
+      "planned": true,
+      "referenced_by": []
+    },
+    {
+      "id": "SPEC-GATE-00",
+      "domain": "gate",
+      "statement": "门禁必须可被违反：提交一个已知违规改动时，CI 必须变红。",
+      "rationale": "不能被违反的门禁是假门禁；这条是元验收，验的是判定体系本身是否生效。",
+      "planned": true,
+      "referenced_by": []
+    },
+    {
+      "id": "SPEC-MCP-01",
+      "domain": "mcp",
+      "statement": "每个 MCP 工具必须在 .vibe/mcp-tools.json 中声明 auth_mode，且工具清单必须与路由清单对应。",
+      "rationale": "MCP 是新的对外入口，不进统一清单就等于绕过了默认拒绝；不声明身份模式就无法判断谁能调。",
+      "planned": true,
+      "referenced_by": []
+    },
+    {
+      "id": "SPEC-MCP-02",
+      "domain": "mcp",
+      "statement": "服务身份不得调用 auth_mode=user 的 MCP 工具；用户身份调用必须落到发起用户上下文。",
+      "rationale": "服务身份若可调用户级工具，等于一个 admin token 走天下，审计链断裂且越权无法追溯。",
+      "planned": true,
+      "referenced_by": []
     },
     {
       "id": "SPEC-OPS-01",
       "domain": "ops",
       "statement": "服务必须提供 health 与 ready 两个端点：均返回 JSON 对象；ready 必须包含 checks 数组以反映依赖状态。",
       "rationale": "只有一个健康端点时，负载均衡会把未就绪的实例也算作可用；没有 checks 的 ready 无法反映依赖故障，等于永远就绪。",
-      "referenced_by": ["SPEC-OPS-01"]
+      "planned": false,
+      "referenced_by": [
+        "SPEC-OPS-01",
+        "bin/vibe-check.mjs"
+      ]
+    },
+    {
+      "id": "SPEC-OPS-02",
+      "domain": "ops",
+      "statement": "代码中 import 的第三方包必须属于 .vibe/runtime-deps.json 声明的运行期依赖。",
+      "rationale": "未声明的依赖会让部署环境缺包；同时这条守住「底座不进运行时」——底座的包只要出现在运行依赖里就会被点名。",
+      "planned": true,
+      "referenced_by": []
+    },
+    {
+      "id": "SPEC-SEC-01",
+      "domain": "sec",
+      "statement": "仓库中不得存在可用的密钥/凭据；检测由现成扫描器完成，底座不自行实现。",
+      "rationale": "密钥进仓库是最常见也最不可逆的事故，一旦推到公开仓库就收不回来。",
+      "planned": true,
+      "referenced_by": []
+    },
+    {
+      "id": "SPEC-STR-01",
+      "domain": "str",
+      "statement": "项目宪法（AGENTS.md）不超过 150 行，且 .vibe/ref.json 声明的 SPEC 版本与底座实际版本一致。",
+      "rationale": "宪法超长会让 agent 选择性忽略入口契约；版本不一致会让所有判定基于过期规范，结果不可信。",
+      "planned": false,
+      "referenced_by": [
+        "SPEC-STR-01",
+        "bin/vibe-check.mjs"
+      ]
+    },
+    {
+      "id": "SPEC-STRUCT-01",
+      "domain": "struct",
+      "statement": "代码不得存在循环依赖，且跨层调用必须符合 .vibe/config.json 声明的依赖方向。",
+      "rationale": "循环依赖会让 agent 每次改动都牵连全库，是项目在 200 次迭代后失控的主要原因。",
+      "planned": true,
+      "referenced_by": []
     }
   ]
 }
