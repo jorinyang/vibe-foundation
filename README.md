@@ -15,63 +15,76 @@ vibecoding 项目的通用工程化底座。
 
 ## 当前状态
 
-SPEC `0.3.0`，三条判定已实现，覆盖三种判定模式：
+SPEC `0.5.0`：11 条契约（4 条已实现、7 条待实现），四种判定模式全打通。
 
 | 判定 | 模式 | 验的是什么 |
 |---|---|---|
 | `SPEC-STR-01` | declaration | 项目宪法 ≤150 行；底座版本引用与实际一致 |
 | `SPEC-AUTH-01` | declaration | 路由声明合法；声明与实际路由一致；public 必须带理由 |
-| `SPEC-OPS-01` | probe | 真起服务，验 health / ready 语义分离，ready 含 `checks` |
+| `SPEC-AUTH-02` | behavior | 双身份越权隔离；拒绝响应不得泄露他人资源标识 |
+| `SPEC-OPS-01` | probe | 真起服务，health / ready 语义分离，ready 含 `checks` |
 
-13 条端到端用例（正向 + 负向）全绿。
+22 条端到端用例（正向 + 负向）全绿。
 
 ## 用法
 
 ```bash
-# 跑单条判定
-node bin/vibe-check.mjs SPEC-OPS-01 --project /path/to/project
+# 单条判定
+vibe-check SPEC-OPS-01 --project /path/to/project
 
-# 机器可读输出
-node bin/vibe-check.mjs SPEC-AUTH-01 --project . --json
+# 全部判定的 gap 报告（人读）
+vibe-check plan --project .
 
-# 全部判定的正负向用例自检
-node bin/vibe-check.mjs --self-test
+# 门禁模式：退出码 + 可选 SARIF
+vibe-check all --project . --ci --sarif out.sarif
+
+# 公开面清单（public 路由 + 理由 + 占比告警）
+vibe-check report-public --project .
+
+# 在项目里生成 .vibe/ 模板
+vibe-check init --project .
+
+# 底座自检（正负向全跑）
+vibe-check --self-test
 ```
 
 退出码：`0` 通过 / `1` 失败 / `2` 配置错误 / `3` 判定崩溃。
 
+### 判定状态
+
+`PASS` / `FAIL` / `SKIP` / `CRASH` / `CONFIG`。**没有 UNKNOWN** —— 不知道就是失败。
+
+- `SKIP` = 有有效期内的豁免（`.vibe/override/<SPEC-ID>.md`，需负责人 + 到期日 ≤90 天）
+- 豁免过期自动变回 `FAIL`；豁免不算 `PASS`
+
 ## 项目侧要放的文件
 
-`.vibe/` 目录：
+`.vibe/` 目录（`vibe-check init` 可生成模板）：
 
 | 文件 | 作用 |
 |---|---|
-| `ref.json` | `{"spec":"0.3.0"}` — 锁定的底座版本 |
-| `config.json` | `routeSource`（file / endpoint）、`service`（startCommand / baseUrl）、`endpoints` |
-| `routes.json` | 路由声明：`visibility: public` 必带 `reason`（≥8 字），`protected` 必带 `resource/action/subjects` |
+| `ref.json` | `{"spec":"0.5.0"}` — 锁定的底座版本 |
+| `config.json` | `routeSource`（file / endpoint）、`service`、`endpoints`、`authzProbe` |
+| `routes.json` | 路由声明：`public` 必带 `reason`（≥8 字），`protected` 必带 `resource/action/subjects` |
 | `routes.actual.json` | 实际路由表（`routeSource.type = "file"` 时用） |
-
-`.vibe/config.json` 示例：
-
-```json
-{
-  "routeSource": { "type": "file", "path": ".vibe/routes.actual.json" },
-  "service": {
-    "startCommand": "npm start",
-    "baseUrl": "http://127.0.0.1:3000",
-    "startupTimeoutMs": 15000
-  },
-  "endpoints": { "health": "/health", "ready": "/ready" }
-}
-```
+| `override/<ID>.md` | 有期限的豁免 |
 
 ## 目录
 
 ```
-bin/            vibe-check 命令行入口
-checks/         判定（每个 SPEC-ID 一个目录：meta / positive / negative / fix）
-spec/           SPEC 契约（spec.json 是唯一真源）
-test/           夹具服务 + 端到端 smoke
+bin/vibe-check.mjs   CLI：check / plan / all / report-public / init / --self-test
+checks/              判定（每个 SPEC-ID 一个目录：meta / positive / negative / fix）
+spec/spec.json       SPEC 契约（唯一真源）
+spec/build-index.mjs 反向索引生成 + 死条款检测
+test/smoke.mjs       端到端用例（正向 + 负向）
+test/guard.mjs       防退化检查（不许出现绝对路径与本地工作副本引用）
+```
+
+## 开发
+
+```bash
+npm run build-spec   # 重新生成 SPEC 反向索引，检测死条款
+npm test             # 防退化检查 + 全部端到端用例
 ```
 
 ## 设计文档
