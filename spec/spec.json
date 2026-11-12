@@ -1,11 +1,11 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "entries": [
     {
       "id": "SPEC-AUTH-01",
       "domain": "auth",
-      "statement": "所有对外路由必须在 .vibe/routes.json 中声明；声明必须与实际路由一致；public 路由必须写明公开理由。",
-      "rationale": "未声明的路由会绕过默认拒绝，是 vibecoding 项目最常见的上线事故来源；没有理由的 public 声明等于没有审查。",
+      "statement": "所有对外路由必须在 .vibe/routes.json 中声明；声明必须与实际路由一致；public 路由必须写明公开理由；实际路由的来源必须独立可信，不得与声明同源。",
+      "rationale": "未声明的路由会绕过默认拒绝，是 vibecoding 项目最常见的上线事故来源；没有理由的 public 声明等于没有审查；若实际路由表与声明出自同一份启发式抽取，比对就是自证，永远通过。",
       "planned": false,
       "referenced_by": [
         "SPEC-AUTH-01",

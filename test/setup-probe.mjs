@@ -77,8 +77,8 @@ function walk(dir) {
 }
 for (const d of dirs) walk(resolve(project, d))
 routes.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method))
-writeFileSync(join(vibe, 'routes.actual.json'), JSON.stringify({ routes: routes.map((r) => ({ method: r.method, path: r.path, source: r.source })) }, null, 2) + '\n')
-console.log(`routes.actual.json → 抽取 ${routes.length} 条路由（启发式，可能含误报）`)
+writeFileSync(join(vibe, 'routes.actual.json'), JSON.stringify({ source: 'heuristic', routes: routes.map((r) => ({ method: r.method, path: r.path, source: r.source })) }, null, 2) + '\n')
+console.log(`routes.actual.json → 抽取 ${routes.length} 条路由（source=heuristic，AUTH-01 会判来源不可信）`)
 
 // 5. 空声明，让 AUTH-01 报出「未声明的路由」
 if (!existsSync(join(vibe, 'routes.json'))) {

@@ -215,7 +215,7 @@ async function loadActualRoutes(project) {
     try {
       const d = readJson(p)
       if (!Array.isArray(d.routes)) return { error: 'routes.actual.json 缺少 routes 数组' }
-      return { routes: d.routes }
+      return { routes: d.routes, source: d.source }
     } catch (e) {
       return { error: `routes.actual.json 不是合法 JSON：${e.message}` }
     }
@@ -227,7 +227,7 @@ async function loadActualRoutes(project) {
       const r = await fetchJson(String(src.url), Number(src.timeoutMs || 5000))
       if (r.status < 200 || r.status >= 300) return { error: `routeSource.endpoint 返回 ${r.status}` }
       if (!r.body || !Array.isArray(r.body.routes)) return { error: 'routeSource.endpoint 响应缺少 routes 数组' }
-      return { routes: r.body.routes }
+      return { routes: r.body.routes, source: 'runtime' }
     } catch (e) {
       return { error: `请求 ${src.url} 失败：${e.message}` }
     }
@@ -276,6 +276,20 @@ async function runAuth01(project) {
     }
   }
   subs.push(cover)
+
+  // 子判定 3：实际路由来源必须可信——不能与声明同源
+  const provenance = sub('实际路由来源可信')
+  if (actual.error) {
+    provenance.detail = actual.error
+  } else if (!actual.source) {
+    provenance.detail = 'routes.actual.json 缺少 source 字段（无法确认来源）'
+  } else if (actual.source === 'heuristic') {
+    provenance.detail = '来源为启发式抽取，与声明同源，比对无效（这是自证，不是对账）'
+  } else {
+    provenance.ok = true
+    provenance.detail = `来源：${actual.source}`
+  }
+  subs.push(provenance)
 
   return { ok: subs.every((s) => s.ok), subs }
 }

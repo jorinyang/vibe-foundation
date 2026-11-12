@@ -47,8 +47,8 @@ const ORDER_ROUTE = {
 function writeRoutes(dir, routes) {
   write(join(dir, '.vibe', 'routes.json'), j({ version: 1, routes }))
 }
-function writeActual(dir, routes) {
-  write(join(dir, '.vibe', 'routes.actual.json'), j({ routes }))
+function writeActual(dir, routes, source = 'runtime') {
+  write(join(dir, '.vibe', 'routes.actual.json'), j({ source, routes }))
 }
 const strip = (routes) => routes.map((r) => ({ method: r.method, path: r.path }))
 
@@ -145,6 +145,12 @@ function add(name, id, dir, expect, contains) {
   writeRoutes(ghost, [HEALTH_ROUTE, ORDER_ROUTE, { ...ORDER_ROUTE, path: '/__ghost' }])
   writeActual(ghost, strip([HEALTH_ROUTE, ORDER_ROUTE]))
   add('AUTH-01 负向：幽灵声明', 'SPEC-AUTH-01', ghost, 1, '实际不存在')
+
+  const heur = base(project('auth-heuristic'))
+  fileConfig(heur)
+  writeRoutes(heur, [HEALTH_ROUTE, ORDER_ROUTE])
+  writeActual(heur, strip([HEALTH_ROUTE, ORDER_ROUTE]), 'heuristic')
+  add('AUTH-01 负向：实际来源与声明同源', 'SPEC-AUTH-01', heur, 1, '启发式')
 }
 
 // ── SPEC-AUTH-02 ──────────────────────────────────────────
