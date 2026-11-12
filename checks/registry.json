@@ -4,7 +4,7 @@
     { "id": "SPEC-STR-01", "dir": "checks/SPEC-STR-01", "kind": "declaration", "title": "项目宪法单屏，且底座引用版本一致", "implemented": true },
     { "id": "SPEC-AUTH-01", "dir": "checks/SPEC-AUTH-01", "kind": "declaration", "title": "路由清单与实际一致，public 必须带理由", "implemented": true },
     { "id": "SPEC-AUTH-02", "dir": "checks/SPEC-AUTH-02", "kind": "behavior", "title": "越权隔离：A 读不到 B 的资源", "implemented": true },
-    { "id": "SPEC-MCP-01", "dir": "checks/SPEC-MCP-01", "kind": "declaration", "title": "MCP 工具声明合法，能力已在路由清单声明", "implemented": true },
+    { "id": "SPEC-MCP-01", "dir": "checks/SPEC-MCP-01", "kind": "declaration", "title": "MCP 工具声明合法，资源域已在路由清单声明", "implemented": true },
     { "id": "SPEC-MCP-02", "dir": "checks/SPEC-MCP-02", "kind": "behavior", "title": "身份模式生效：服务身份不得调用户级工具", "implemented": true },
     { "id": "SPEC-OPS-01", "dir": "checks/SPEC-OPS-01", "kind": "probe", "title": "health / ready 语义分离，ready 含 checks", "implemented": true },
     { "id": "SPEC-ENV-01", "dir": "checks/SPEC-ENV-01", "kind": "behavior", "title": "缺必需环境变量时启动必须失败", "implemented": true },
