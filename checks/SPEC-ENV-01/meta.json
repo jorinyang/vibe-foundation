@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-ENV-01",
+  "spec_ref": "SPEC-ENV-01",
+  "title": "缺必需环境变量时启动必须失败",
+  "kind": "behavior",
+  "consumes": ["config.json"],
+  "applies_to": ["*"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 30000
+}

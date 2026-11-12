@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-GATE-00",
+  "spec_ref": "SPEC-GATE-00",
+  "title": "门禁元验收：注入违规必须变红",
+  "kind": "meta",
+  "consumes": ["routes.json"],
+  "applies_to": ["*"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["ci"],
+  "timeout_ms": 60000
+}

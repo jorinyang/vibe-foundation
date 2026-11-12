@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-STRUCT-01",
+  "spec_ref": "SPEC-STRUCT-01",
+  "title": "无循环依赖，依赖方向合规",
+  "kind": "static",
+  "consumes": ["config.json"],
+  "applies_to": ["ts", "python"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 60000
+}

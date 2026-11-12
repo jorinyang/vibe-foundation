@@ -172,10 +172,18 @@ const FULL_MCP_TOOLS = {
   ],
 }
 
-/** 六条判定都能过的项目 */
-function goodProject(name, port, mode = 'good') {
+/** 十一条判定都能过的项目 */
+function goodProject(name, port, mode = 'env-strict') {
   const dir = base(project(name))
-  serviceConfig(dir, port, mode, 8000, {
+  write(join(dir, '.vibe', 'config.json'), j({
+    routeSource: { type: 'file', path: '.vibe/routes.actual.json' },
+    service: {
+      startCommand: `node "${FIXTURE}" ${port} ${mode}`,
+      baseUrl: `http://127.0.0.1:${port}`,
+      startupTimeoutMs: 8000,
+      env: { VIBE_REQUIRED_TOKEN: 'smoke-token' },
+    },
+    endpoints: { health: '/health', ready: '/ready' },
     ...AUTHZ,
     mcpProbe: {
       path: '/mcp',
@@ -185,10 +193,17 @@ function goodProject(name, port, mode = 'good') {
       tokenHeader: 'authorization',
       denyStatus: [401, 403],
     },
-  })
+    envProbe: { required: ['VIBE_REQUIRED_TOKEN'], timeoutMs: 3000 },
+    security: { scannerCommand: 'node scan-ok.mjs' },
+    runtimeDeps: { stack: 'ts', sourceDirs: ['src'] },
+    structure: { stack: 'ts', sourceDirs: ['src'], layers: {} },
+  }))
   writeRoutes(dir, FULL_ROUTES)
   writeActual(dir, strip(FULL_ROUTES))
   write(join(dir, '.vibe', 'mcp-tools.json'), j(FULL_MCP_TOOLS))
+  write(join(dir, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: [] }))
+  write(join(dir, 'scan-ok.mjs'), 'process.exit(0)\n')
+  write(join(dir, 'src/a.ts'), 'export const a = 1\n')
   return dir
 }
 
@@ -286,10 +301,92 @@ function mcpProject(name, port, mode = 'good') {
   add('MCP-02 负向：服务身份可调用户工具', 'SPEC-MCP-02', bad, 1, '未被拒绝')
 }
 
+// ── SPEC-ENV-01 / SEC-01 / OPS-02 / STRUCT-01 / GATE-00 ────
+{
+  const pass = base(project('env-pass'))
+  write(join(pass, '.vibe', 'config.json'), j({
+    service: { startCommand: `node "${FIXTURE}" 4170 env-strict`, baseUrl: 'http://127.0.0.1:4170', startupTimeoutMs: 8000 },
+    envProbe: { required: ['VIBE_REQUIRED_TOKEN'], timeoutMs: 4000 },
+  }))
+  add('ENV-01 正向：缺变量启动失败', 'SPEC-ENV-01', pass, 0, '非零码')
+
+  const lax = base(project('env-lax'))
+  write(join(lax, '.vibe', 'config.json'), j({
+    service: { startCommand: `node "${FIXTURE}" 4171 good`, baseUrl: 'http://127.0.0.1:4171', startupTimeoutMs: 8000 },
+    envProbe: { required: ['VIBE_REQUIRED_TOKEN'], timeoutMs: 2500 },
+  }))
+  add('ENV-01 负向：缺变量仍在运行', 'SPEC-ENV-01', lax, 1, '仍在运行')
+}
+
+{
+  const okDir = base(project('sec-pass'))
+  write(join(okDir, 'scan.mjs'), 'process.exit(0)\n')
+  write(join(okDir, '.vibe', 'config.json'), j({ security: { scannerCommand: 'node scan.mjs' } }))
+  add('SEC-01 正向：扫描器返回 0', 'SPEC-SEC-01', okDir, 0, '扫描器返回 0')
+
+  const badDir = base(project('sec-fail'))
+  write(join(badDir, 'scan-bad.mjs'), 'console.log("found secret at src/x.ts:12")\nprocess.exit(1)\n')
+  write(join(badDir, '.vibe', 'config.json'), j({ security: { scannerCommand: 'node scan-bad.mjs' } }))
+  add('SEC-01 负向：扫描器返回 1', 'SPEC-SEC-01', badDir, 1, 'found secret')
+}
+
+{
+  const pass = base(project('ops02-pass'))
+  write(join(pass, 'src/a.ts'), "import { z } from 'zod'\nimport { b } from './b'\nexport const x = b\n")
+  write(join(pass, 'src/b.ts'), 'export const b = 1\n')
+  write(join(pass, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: ['zod'] }))
+  write(join(pass, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['src'] } }))
+  add('OPS-02 正向：依赖已声明', 'SPEC-OPS-02', pass, 0, '覆盖全部 import')
+
+  const bad = base(project('ops02-bad'))
+  write(join(bad, 'src/a.ts'), "import express from 'express'\nexport const a = express\n")
+  write(join(bad, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: ['zod'] }))
+  write(join(bad, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['src'] } }))
+  add('OPS-02 负向：未声明依赖', 'SPEC-OPS-02', bad, 1, '未声明')
+
+  const empty = base(project('ops02-empty'))
+  write(join(empty, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: [] }))
+  write(join(empty, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['missing'] } }))
+  add('OPS-02 负向：扫不到源码', 'SPEC-OPS-02', empty, 1, '扫描源码')
+}
+
+{
+  const structCfg = { structure: { stack: 'ts', sourceDirs: ['src'], layers: { 'src/api': ['src/service'], 'src/service': [] } } }
+
+  const pass = base(project('struct-pass'))
+  write(join(pass, 'src/api/a.ts'), "import { b } from '../service/b'\nexport const a = b\n")
+  write(join(pass, 'src/service/b.ts'), 'export const b = 1\n')
+  write(join(pass, '.vibe', 'config.json'), j(structCfg))
+  add('STRUCT-01 正向：无循环且方向合规', 'SPEC-STRUCT-01', pass, 0, '方向合规')
+
+  const cyc = base(project('struct-cycle'))
+  write(join(cyc, 'src/a.ts'), "import { b } from './b'\nexport const a = b\n")
+  write(join(cyc, 'src/b.ts'), "import { a } from './a'\nexport const b = a\n")
+  write(join(cyc, '.vibe', 'config.json'), j({ structure: { stack: 'ts', sourceDirs: ['src'] } }))
+  add('STRUCT-01 负向：循环依赖', 'SPEC-STRUCT-01', cyc, 1, '循环')
+
+  const rev = base(project('struct-reverse'))
+  write(join(rev, 'src/api/a.ts'), "import { b } from '../service/b'\nexport const a = b\n")
+  write(join(rev, 'src/service/b.ts'), "import { c } from '../api/c'\nexport const b = c\n")
+  write(join(rev, 'src/api/c.ts'), 'export const c = 1\n')
+  write(join(rev, '.vibe', 'config.json'), j(structCfg))
+  add('STRUCT-01 负向：反向依赖', 'SPEC-STRUCT-01', rev, 1, '不许依赖')
+}
+
+{
+  add('GATE-00 正向：注入违规后变红', 'SPEC-GATE-00', goodProject('gate-ok', 4175), 0, '门禁有效')
+
+  const noPublic = base(project('gate-nopublic'))
+  write(join(noPublic, '.vibe', 'config.json'), j({ routeSource: { type: 'file', path: '.vibe/routes.actual.json' } }))
+  writeRoutes(noPublic, [ORDER_ROUTE])
+  writeActual(noPublic, strip([ORDER_ROUTE]))
+  add('GATE-00 负向：无 public 路由可注入', 'SPEC-GATE-00', noPublic, 1, '没有 public 路由')
+}
+
 // ── 汇总命令 / 豁免 / 公开面 ───────────────────────────────
 {
   const good = goodProject('agg-good', 4140)
-  add('aggregate：四条全过', ['all'], good, 0, 'FAIL 0')
+  add('aggregate：全部通过', ['all'], good, 0, 'FAIL 0')
 
   const bad = goodProject('agg-fail', 4141)
   writeActual(bad, strip([...FULL_ROUTES, { method: 'POST', path: '/api/admin' }]))

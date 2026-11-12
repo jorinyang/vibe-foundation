@@ -1,0 +1,32 @@
+name: vibe-check
+
+# 项目侧 CI 薄封装：把这段复制到项目的 .github/workflows/ 下即可。
+# 底座只依赖 Node，不绑定任何 CI 平台。
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  vibe-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 方式一：从 git 仓库安装（私有仓库需先配好凭据）
+      # - run: npm i -D github:<owner>/vibe-foundation
+      # 方式二：把底座作为 submodule / 本地路径引入
+      - run: node vibe-foundation/bin/vibe-check.mjs all --project . --ci --sarif vibe.sarif
+        # 退出码 0 通过 / 1 失败 / 2 配置错误 / 3 判定崩溃
+        # 注意：3 必须当失败处理，不要被 || true 之类吞掉
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: vibe.sarif
+          category: vibe-check

@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-SEC-01",
+  "spec_ref": "SPEC-SEC-01",
+  "title": "仓库无密钥（接入现成扫描器）",
+  "kind": "static",
+  "consumes": ["config.json"],
+  "applies_to": ["*"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 120000
+}

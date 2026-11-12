@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0",
   "entries": [
     {
       "id": "SPEC-AUTH-01",
@@ -28,21 +28,27 @@
       "domain": "env",
       "statement": "服务启动时必须校验环境变量 schema，缺少必需变量即启动失败，不得用默认值静默继续。",
       "rationale": "缺变量用默认值跑起来，会把配置错误推到运行期才炸，且现场看不出是配置问题。",
-      "planned": true,
-      "referenced_by": []
+      "planned": false,
+      "referenced_by": [
+        "SPEC-ENV-01",
+        "bin/vibe-check.mjs"
+      ]
     },
     {
       "id": "SPEC-GATE-00",
       "domain": "gate",
-      "statement": "门禁必须可被违反：提交一个已知违规改动时，CI 必须变红。",
+      "statement": "门禁必须可被违反：对项目注入一个已知违规改动时，对应判定必须变红。",
       "rationale": "不能被违反的门禁是假门禁；这条是元验收，验的是判定体系本身是否生效。",
-      "planned": true,
-      "referenced_by": []
+      "planned": false,
+      "referenced_by": [
+        "SPEC-GATE-00",
+        "bin/vibe-check.mjs"
+      ]
     },
     {
       "id": "SPEC-MCP-01",
       "domain": "mcp",
-      "statement": "每个 MCP 工具必须在 .vibe/mcp-tools.json 中声明 auth_mode，且工具清单必须与路由清单对应。",
+      "statement": "每个 MCP 工具必须在 .vibe/mcp-tools.json 中声明 auth_mode，且工具能力必须在路由清单中已声明。",
       "rationale": "MCP 是新的对外入口，不进统一清单就等于绕过了默认拒绝；不声明身份模式就无法判断谁能调。",
       "planned": false,
       "referenced_by": [
@@ -77,16 +83,22 @@
       "domain": "ops",
       "statement": "代码中 import 的第三方包必须属于 .vibe/runtime-deps.json 声明的运行期依赖。",
       "rationale": "未声明的依赖会让部署环境缺包；同时这条守住「底座不进运行时」——底座的包只要出现在运行依赖里就会被点名。",
-      "planned": true,
-      "referenced_by": []
+      "planned": false,
+      "referenced_by": [
+        "SPEC-OPS-02",
+        "bin/vibe-check.mjs"
+      ]
     },
     {
       "id": "SPEC-SEC-01",
       "domain": "sec",
       "statement": "仓库中不得存在可用的密钥/凭据；检测由现成扫描器完成，底座不自行实现。",
       "rationale": "密钥进仓库是最常见也最不可逆的事故，一旦推到公开仓库就收不回来。",
-      "planned": true,
-      "referenced_by": []
+      "planned": false,
+      "referenced_by": [
+        "SPEC-SEC-01",
+        "bin/vibe-check.mjs"
+      ]
     },
     {
       "id": "SPEC-STR-01",
@@ -104,8 +116,11 @@
       "domain": "struct",
       "statement": "代码不得存在循环依赖，且跨层调用必须符合 .vibe/config.json 声明的依赖方向。",
       "rationale": "循环依赖会让 agent 每次改动都牵连全库，是项目在 200 次迭代后失控的主要原因。",
-      "planned": true,
-      "referenced_by": []
+      "planned": false,
+      "referenced_by": [
+        "SPEC-STRUCT-01",
+        "bin/vibe-check.mjs"
+      ]
     }
   ]
 }

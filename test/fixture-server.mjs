@@ -10,6 +10,12 @@ import { createServer } from 'node:http'
 const port = Number(process.argv[2] || 3999)
 const mode = process.argv[3] || 'good'
 
+// env-strict 模式：缺少必需变量时立即失败（用于 SPEC-ENV-01 的正向用例）
+if (mode === 'env-strict' && !process.env.VIBE_REQUIRED_TOKEN) {
+  process.stderr.write('missing VIBE_REQUIRED_TOKEN\n')
+  process.exit(1)
+}
+
 const ROUTES = [
   { method: 'GET', path: '/health' },
   { method: 'GET', path: '/ready' },

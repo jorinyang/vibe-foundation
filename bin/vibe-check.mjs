@@ -12,9 +12,10 @@
  *
  * 退出码：0 通过 / 1 失败 / 2 配置错误 / 3 判定崩溃
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, mkdtempSync, cpSync, rmSync, readdirSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { spawn, spawnSync } from 'node:child_process'
-import { join, dirname, isAbsolute, resolve } from 'node:path'
+import { join, dirname, isAbsolute, resolve, extname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -543,13 +544,337 @@ async function runMcp02(project) {
   return { ok: subs.every((s) => s.ok), subs }
 }
 
+// ── 静态分析公用 ───────────────────────────────────────────
+const TS_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'])
+const PY_EXT = new Set(['.py'])
+const NODE_BUILTINS = new Set(['fs', 'path', 'os', 'http', 'https', 'url', 'util', 'crypto', 'stream', 'events', 'buffer', 'child_process', 'assert', 'net', 'tls', 'zlib', 'querystring', 'readline', 'timers', 'worker_threads', 'process', 'console', 'module', 'perf_hooks', 'async_hooks', 'vm', 'dns', 'cluster', 'v8', 'inspector', 'test'])
+const PY_BUILTINS = new Set(['sys', 'os', 'json', 're', 'time', 'datetime', 'typing', 'pathlib', 'subprocess', 'logging', 'collections', 'itertools', 'functools', 'asyncio', 'math', 'random', 'hashlib', 'uuid', 'dataclasses', 'enum', 'abc', 'io', 'csv', 'unittest', 'http', 'urllib', 'base64', 'secrets', 'shutil', 'glob', 'tempfile', 'contextlib', 'traceback', 'string', 'struct', 'socket', 'threading', 'queue', 'copy', 'types'])
+
+function walkFiles(dir, extSet, out = []) {
+  if (!existsSync(dir)) return out
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === '.git' || name === 'dist' || name === 'build' || name === '__pycache__') continue
+    const p = join(dir, name)
+    const st = statSync(p)
+    if (st.isDirectory()) walkFiles(p, extSet, out)
+    else if (extSet.has(extname(name))) out.push(p)
+  }
+  return out
+}
+
+function extractImportsTS(code) {
+  const specs = new Set()
+  for (const re of [/\bfrom\s+['"]([^'"]+)['"]/g, /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g, /\bimport\s+['"]([^'"]+)['"]/g]) {
+    let m
+    while ((m = re.exec(code))) specs.add(m[1])
+  }
+  return [...specs]
+}
+
+function extractImportsPy(code) {
+  const specs = new Set()
+  for (const raw of code.split(/\r?\n/)) {
+    const t = raw.trim()
+    if (!t || t.startsWith('#')) continue
+    let m = t.match(/^import\s+([A-Za-z0-9_.]+(?:\s*,\s*[A-Za-z0-9_.]+)*)/)
+    if (m) m[1].split(',').forEach((s) => specs.add(s.trim()))
+    m = t.match(/^from\s+([A-Za-z0-9_.]+)\s+import\b/)
+    if (m) specs.add(m[1])
+  }
+  return [...specs]
+}
+
+function pkgRootTS(spec) {
+  if (spec.startsWith('.') || spec.startsWith('/') || spec.startsWith('node:')) return null
+  const parts = spec.split('/')
+  return spec.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0]
+}
+
+function pkgRootPy(spec) {
+  if (spec.startsWith('.')) return null
+  return spec.split('.')[0]
+}
+
+function resolveLocalImport(fromFile, spec, extSet) {
+  if (!spec.startsWith('.')) return null
+  const base = resolve(dirname(fromFile), spec)
+  const cands = [base]
+  for (const e of extSet) cands.push(base + e)
+  for (const e of extSet) cands.push(join(base, 'index' + e))
+  for (const c of cands) {
+    if (existsSync(c) && statSync(c).isFile()) return c
+  }
+  return null
+}
+
+function buildGraph(project, dirs, stack) {
+  const extSet = stack === 'python' ? PY_EXT : TS_EXT
+  const files = []
+  for (const d of dirs) files.push(...walkFiles(resolve(project, d), extSet))
+  const graph = new Map()
+  for (const f of files) {
+    const code = readFileSync(f, 'utf8')
+    const specs = stack === 'python' ? extractImportsPy(code) : extractImportsTS(code)
+    const locals = []
+    for (const s of specs) {
+      const r = resolveLocalImport(f, s, extSet)
+      if (r) locals.push(r)
+    }
+    graph.set(f, { specs, locals })
+  }
+  return { files, graph }
+}
+
+function findCycles(graph) {
+  const color = new Map()
+  const stack = []
+  const cycles = []
+  const visit = (node) => {
+    color.set(node, 1)
+    stack.push(node)
+    const entry = graph.get(node)
+    for (const nx of (entry ? entry.locals : [])) {
+      const c = color.get(nx) || 0
+      if (c === 1) {
+        const i = stack.indexOf(nx)
+        cycles.push(stack.slice(i).concat(nx))
+      } else if (c === 0) visit(nx)
+    }
+    stack.pop()
+    color.set(node, 2)
+  }
+  for (const n of graph.keys()) if (!color.get(n)) visit(n)
+  return cycles
+}
+
+function layerOf(project, file, layerKeys) {
+  const relp = relative(project, file).replace(/\\/g, '/')
+  let best = null
+  for (const k of layerKeys) {
+    const kk = String(k).replace(/\/$/, '')
+    if (relp === kk || relp.startsWith(kk + '/')) {
+      if (!best || kk.length > best.length) best = kk
+    }
+  }
+  return best
+}
+
+// ── SPEC-OPS-02：import ⊆ 运行依赖声明（语言相关）────────────────
+function runOps02(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return single('读取 .vibe/config.json', cfgRes.error)
+  const cfg = cfgRes.config
+  const rd = cfg.runtimeDeps
+  if (!rd) return single('读取 runtimeDeps 配置', 'config.json 缺少 runtimeDeps')
+  const stack = rd.stack === 'python' ? 'python' : 'ts'
+  const dirs = Array.isArray(rd.sourceDirs) && rd.sourceDirs.length ? rd.sourceDirs : ['src']
+
+  const depsPath = join(project, '.vibe', 'runtime-deps.json')
+  if (!existsSync(depsPath)) return single('读取运行依赖声明', '缺少 .vibe/runtime-deps.json')
+  let declared
+  try { declared = readJson(depsPath) } catch (e) { return single('读取运行依赖声明', `runtime-deps.json 不是合法 JSON：${e.message}`) }
+  const allowed = new Set(Array.isArray(declared.runtime) ? declared.runtime : [])
+
+  const { files, graph } = buildGraph(project, dirs, stack)
+  const subs = [Object.assign(sub('扫描源码'), { ok: files.length > 0, detail: `${files.length} 个文件（${dirs.join(', ')}）` })]
+
+  const undeclared = new Map()
+  for (const f of files) {
+    for (const spec of graph.get(f).specs) {
+      const root = stack === 'python' ? pkgRootPy(spec) : pkgRootTS(spec)
+      if (!root) continue
+      if (stack === 'python' && PY_BUILTINS.has(root)) continue
+      if (stack === 'ts' && (NODE_BUILTINS.has(root) || spec.startsWith('node:'))) continue
+      if (!allowed.has(root)) {
+        if (!undeclared.has(root)) undeclared.set(root, [])
+        undeclared.get(root).push(relative(project, f).replace(/\\/g, '/'))
+      }
+    }
+  }
+
+  const s = sub('import 的包 ⊆ 运行依赖声明')
+  if (undeclared.size === 0) {
+    s.ok = true
+    s.detail = `${allowed.size} 个声明的运行依赖覆盖全部 import`
+  } else {
+    s.detail = `${undeclared.size} 个包未声明（${[...undeclared.keys()].slice(0, 3).join('、')}）`
+  }
+  subs.push(s)
+  return { ok: subs.every((x) => x.ok), subs }
+}
+
+// ── SPEC-STRUCT-01：循环依赖 + 依赖方向（语言相关）───────────────
+function runStruct01(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return single('读取 .vibe/config.json', cfgRes.error)
+  const cfg = cfgRes.config
+  const st = cfg.structure
+  if (!st) return single('读取 structure 配置', 'config.json 缺少 structure')
+  const stack = st.stack === 'python' ? 'python' : 'ts'
+  const dirs = Array.isArray(st.sourceDirs) && st.sourceDirs.length ? st.sourceDirs : ['src']
+
+  const { files, graph } = buildGraph(project, dirs, stack)
+  const subs = [Object.assign(sub('扫描依赖图'), { ok: files.length > 0, detail: `${files.length} 个文件` })]
+
+  const cycles = findCycles(graph)
+  const c = sub('无循环依赖')
+  if (cycles.length === 0) {
+    c.ok = true
+    c.detail = '未发现循环'
+  } else {
+    const show = cycles[0].map((f) => relative(project, f).replace(/\\/g, '/')).slice(0, 4)
+    c.detail = `${cycles.length} 组循环（${show.join(' → ')}）`
+  }
+  subs.push(c)
+
+  const layerKeys = st.layers ? Object.keys(st.layers) : []
+  const d = sub('依赖方向符合声明')
+  if (!layerKeys.length) {
+    d.ok = true
+    d.detail = '未声明 layers，跳过方向检查'
+  } else {
+    const bad = []
+    for (const [from, entry] of graph) {
+      const lf = layerOf(project, from, layerKeys)
+      if (!lf) continue
+      const allow = new Set((st.layers[lf] || []).map((x) => String(x).replace(/\/$/, '')))
+      for (const to of entry.locals) {
+        const lt = layerOf(project, to, layerKeys)
+        if (!lt || lt === lf) continue
+        if (!allow.has(lt)) {
+          bad.push(`${relative(project, from).replace(/\\/g, '/')} → ${relative(project, to).replace(/\\/g, '/')}（${lf} 不许依赖 ${lt}）`)
+        }
+      }
+    }
+    if (bad.length === 0) { d.ok = true; d.detail = `${layerKeys.length} 层方向合规` }
+    else d.detail = `${bad.length} 处违规（${bad.slice(0, 2).join('；')}）`
+  }
+  subs.push(d)
+
+  return { ok: subs.every((x) => x.ok), subs }
+}
+
+// ── SPEC-ENV-01：缺必需变量时启动必须失败 ──────────────────────
+async function runEnv01(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return single('读取 .vibe/config.json', cfgRes.error)
+  const cfg = cfgRes.config
+  const probe = cfg.envProbe
+  if (!probe) return single('读取 envProbe 配置', 'config.json 缺少 envProbe')
+  const required = Array.isArray(probe.required) ? probe.required.filter(Boolean) : []
+  if (!required.length) return single('读取 envProbe 配置', 'envProbe.required 为空')
+  if (!cfg.service || !cfg.service.startCommand) return single('读取 service 配置', 'config.json 缺少 service.startCommand')
+
+  const timeout = Number(probe.timeoutMs || 8000)
+  const cwd = isAbsolute(cfg.service.cwd || '') ? cfg.service.cwd : resolve(project, cfg.service.cwd || '.')
+  const env = { ...process.env, ...(cfg.service.env || {}) }
+  for (const k of required) delete env[k]
+
+  let child
+  try {
+    child = spawn(cfg.service.startCommand, { cwd, shell: true, stdio: 'ignore', windowsHide: true, env })
+  } catch (e) {
+    return single('启动服务（缺少必需变量）', `启动失败：${e.message}`)
+  }
+
+  const s = sub(`缺少 ${required.join('/')} 时启动必须失败`)
+  const outcome = await new Promise((res) => {
+    let done = false
+    child.on('exit', (code) => { if (!done) { done = true; res({ code }) } })
+    setTimeout(() => { if (!done) { done = true; res({ code: null }) } }, timeout)
+  })
+
+  if (outcome.code === null) {
+    await stopTree(child)
+    s.detail = `服务在缺少必需变量时仍在运行 ${timeout}ms（未被拦截）`
+  } else if (outcome.code === 0) {
+    s.detail = '服务在缺少必需变量时以 0 退出（静默通过）'
+  } else {
+    s.ok = true
+    s.detail = `以非零码 ${outcome.code} 退出`
+  }
+
+  return { ok: s.ok, subs: [s] }
+}
+
+// ── SPEC-SEC-01：仓库无密钥（接现成扫描器）──────────────────────
+function runSec01(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return single('读取 .vibe/config.json', cfgRes.error)
+  const sec = cfgRes.config.security
+  if (!sec || !sec.scannerCommand) {
+    return single('读取 security 配置', '缺少 security.scannerCommand（底座不自研扫描器，须接入 gitleaks 等现成工具）')
+  }
+  const r = spawnSync(String(sec.scannerCommand), {
+    cwd: project,
+    shell: true,
+    encoding: 'utf8',
+    timeout: Number(sec.timeoutMs || 120000),
+    windowsHide: true,
+  })
+  const s = sub('密钥扫描无命中')
+  if (r.status === 0) {
+    s.ok = true
+    s.detail = '扫描器返回 0'
+  } else {
+    const tail = String(r.stdout || '').trim().split(/\r?\n/).slice(-2).join(' ')
+    s.detail = `扫描器返回 ${r.status}${tail ? '：' + tail : ''}`
+  }
+  return { ok: s.ok, subs: [s] }
+}
+
+// ── SPEC-GATE-00：门禁元验收（注入违规必须变红）──────────────────
+async function runGate00(project) {
+  const subs = []
+  const baseline = await runAuth01(project)
+
+  // 基线已经红了 → 门禁"可被违反"这件事本身已被证实，无需再注入
+  if (!baseline.ok) {
+    subs.push(Object.assign(sub('基线状态'), { ok: true, detail: '基线已红 —— 门禁可违反性成立，跳过注入演练' }))
+    return { ok: true, subs }
+  }
+  subs.push(Object.assign(sub('基线：当前项目 AUTH-01 通过'), { ok: true, detail: '基线通过，进入注入演练' }))
+
+  const routesPath = join(project, '.vibe', 'routes.json')
+  const data = readJson(routesPath)
+  const pub = (data.routes || []).find((r) => r.visibility === 'public')
+  if (!pub) {
+    subs.push(Object.assign(sub('准备注入环境'), { detail: 'routes.json 没有 public 路由，无法注入「缺理由」违规' }))
+    return { ok: false, subs }
+  }
+
+  const tmp = mkdtempSync(join(tmpdir(), 'vibe-gate-'))
+  try {
+    cpSync(join(project, '.vibe'), join(tmp, '.vibe'), { recursive: true })
+    const mutated = readJson(join(tmp, '.vibe', 'routes.json'))
+    const target = mutated.routes.find((r) => r.visibility === 'public')
+    delete target.reason
+    writeFileSync(join(tmp, '.vibe', 'routes.json'), JSON.stringify(mutated, null, 2))
+
+    const injected = await runAuth01(tmp)
+    const s = sub('注入「public 缺理由」→ 判定必须变红')
+    s.ok = !injected.ok
+    s.detail = injected.ok ? '注入违规后判定仍然通过 —— 门禁是假的' : '已变红，门禁有效'
+    subs.push(s)
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
+  }
+
+  return { ok: subs.every((x) => x.ok), subs }
+}
+
 const RUNNERS = {
   'SPEC-STR-01': runStr01,
   'SPEC-AUTH-01': runAuth01,
   'SPEC-AUTH-02': runAuthz02,
-  'SPEC-OPS-01': runOps01,
+  'SPEC-ENV-01': runEnv01,
+  'SPEC-GATE-00': runGate00,
   'SPEC-MCP-01': runMcp01,
   'SPEC-MCP-02': runMcp02,
+  'SPEC-OPS-01': runOps01,
+  'SPEC-OPS-02': runOps02,
+  'SPEC-SEC-01': runSec01,
+  'SPEC-STRUCT-01': runStruct01,
 }
 
 // ── 豁免与评估 ─────────────────────────────────────────────

@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-OPS-02",
+  "spec_ref": "SPEC-OPS-02",
+  "title": "import 的包 ⊆ 运行依赖声明",
+  "kind": "static",
+  "consumes": ["config.json", "runtime-deps.json"],
+  "applies_to": ["ts", "python"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 60000
+}
