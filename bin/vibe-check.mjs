@@ -742,6 +742,21 @@ function runOps02(project) {
   const { files, graph, pyRoots } = buildGraph(project, dirs, stack)
   const subs = [Object.assign(sub('扫描源码'), { ok: files.length > 0, detail: `${files.length} 个文件（${dirs.join(', ')}）` })]
 
+  // 子判定：项目必须存在显式依赖声明文件
+  // 否则「import ⊆ 声明」在零声明项目上平凡成立（真实项目验证发现，见 ADR-003）
+  const manifests = rd.manifest
+    ? [].concat(rd.manifest)
+    : (stack === 'python' ? ['pyproject.toml', 'requirements.txt'] : ['package.json'])
+  const manifestHit = manifests.find((m) => existsSync(join(project, m)))
+  const manifestSub = sub('项目存在显式依赖声明')
+  if (manifestHit) {
+    manifestSub.ok = true
+    manifestSub.detail = `找到 ${manifestHit}`
+  } else {
+    manifestSub.detail = `未找到 ${manifests.join(' / ')}（未声明 ≠ 不需要，需显式声明，可为空）`
+  }
+  subs.push(manifestSub)
+
   const undeclared = new Map()
   for (const f of files) {
     for (const spec of graph.get(f).specs) {

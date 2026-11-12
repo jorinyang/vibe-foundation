@@ -15,7 +15,7 @@ vibecoding 项目的通用工程化底座。
 
 ## 当前状态
 
-SPEC `0.8.0`：**11 条契约全部实现**，五种判定模式（declaration / probe / behavior / static / meta）。
+SPEC `0.9.0`：**11 条契约全部实现**，五种判定模式（declaration / probe / behavior / static / meta）。
 
 | 判定 | 模式 | 验的是什么 |
 |---|---|---|
@@ -31,7 +31,7 @@ SPEC `0.8.0`：**11 条契约全部实现**，五种判定模式（declaration /
 | `SPEC-STRUCT-01` | static | 无循环依赖；跨层调用符合声明的依赖方向 |
 | `SPEC-GATE-00` | meta | 门禁元验收：注入违规必须变红 |
 
-**46 条端到端用例（正向 + 负向）全绿。**
+**47 条端到端用例（正向 + 负向）全绿。**
 
 其中只有 `SPEC-OPS-02` 与 `SPEC-STRUCT-01` 是语言相关的（TS / Python 各一套实现，两栈都有正负向用例覆盖），其余九条语言无关。
 
@@ -72,7 +72,7 @@ vibe-check --self-test
 
 | 文件 | 作用 |
 |---|---|
-| `ref.json` | `{"spec":"0.8.0"}` — 锁定的底座版本 |
+| `ref.json` | `{"spec":"0.9.0"}` — 锁定的底座版本 |
 | `config.json` | 全局配置，见下 |
 | `routes.json` | 路由声明：`public` 必带 `reason`（≥8 字），`protected` 必带 `resource/action/subjects` |
 | `routes.actual.json` | 实际路由表（`routeSource.type = "file"` 时用） |

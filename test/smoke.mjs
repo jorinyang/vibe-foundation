@@ -208,6 +208,7 @@ function goodProject(name, port, mode = 'env-strict') {
   writeActual(dir, strip(FULL_ROUTES))
   write(join(dir, '.vibe', 'mcp-tools.json'), j(FULL_MCP_TOOLS))
   write(join(dir, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: [] }))
+  write(join(dir, 'package.json'), j({ name: 'smoke-good', dependencies: {} }))
   write(join(dir, 'scan-ok.mjs'), 'process.exit(0)\n')
   write(join(dir, 'src/a.ts'), 'export const a = 1\n')
   return dir
@@ -338,6 +339,7 @@ function mcpProject(name, port, mode = 'good') {
 
 {
   const pass = base(project('ops02-pass'))
+  write(join(pass, 'package.json'), j({ name: 'smoke', dependencies: { zod: '^3' } }))
   write(join(pass, 'src/a.ts'), "import { z } from 'zod'\nimport { b } from './b'\nexport const x = b\n")
   write(join(pass, 'src/b.ts'), 'export const b = 1\n')
   write(join(pass, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: ['zod'] }))
@@ -345,15 +347,23 @@ function mcpProject(name, port, mode = 'good') {
   add('OPS-02 正向：依赖已声明', 'SPEC-OPS-02', pass, 0, '覆盖全部 import')
 
   const bad = base(project('ops02-bad'))
+  write(join(bad, 'package.json'), j({ name: 'smoke-bad', dependencies: { zod: '^3' } }))
   write(join(bad, 'src/a.ts'), "import express from 'express'\nexport const a = express\n")
   write(join(bad, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: ['zod'] }))
   write(join(bad, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['src'] } }))
   add('OPS-02 负向：未声明依赖', 'SPEC-OPS-02', bad, 1, '未声明')
 
   const empty = base(project('ops02-empty'))
+  write(join(empty, 'package.json'), j({ name: 'smoke-empty', dependencies: {} }))
   write(join(empty, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: [] }))
   write(join(empty, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['missing'] } }))
   add('OPS-02 负向：扫不到源码', 'SPEC-OPS-02', empty, 1, '扫描源码')
+
+  const noManifest = base(project('ops02-nomanifest'))
+  write(join(noManifest, 'src/a.ts'), 'export const a = 1\n')
+  write(join(noManifest, '.vibe', 'runtime-deps.json'), j({ version: 1, stack: 'ts', runtime: [] }))
+  write(join(noManifest, '.vibe', 'config.json'), j({ runtimeDeps: { stack: 'ts', sourceDirs: ['src'] } }))
+  add('OPS-02 负向：没有依赖声明文件', 'SPEC-OPS-02', noManifest, 1, '未找到')
 }
 
 {
@@ -382,6 +392,7 @@ function mcpProject(name, port, mode = 'good') {
 // ── Python 栈（两条语言相关判定）───────────────────────────
 {
   const pass = base(project('py-ops02-pass'))
+  write(join(pass, 'pyproject.toml'), '[project]\nname = "smoke-py"\ndependencies = ["requests"]\n')
   write(join(pass, 'src/a.py'), 'import os\nimport requests\nfrom .b import b\nprint(b)\n')
   write(join(pass, 'src/b.py'), 'b = 1\n')
   write(join(pass, '.vibe/runtime-deps.json'), j({ version: 1, stack: 'python', runtime: ['requests'] }))
@@ -389,12 +400,14 @@ function mcpProject(name, port, mode = 'good') {
   add('OPS-02 Python 正向：依赖已声明', 'SPEC-OPS-02', pass, 0, '覆盖全部 import')
 
   const bad = base(project('py-ops02-bad'))
+  write(join(bad, 'pyproject.toml'), '[project]\nname = "smoke-py-bad"\n')
   write(join(bad, 'src/a.py'), 'import flask\n')
   write(join(bad, '.vibe/runtime-deps.json'), j({ version: 1, stack: 'python', runtime: ['requests'] }))
   write(join(bad, '.vibe/config.json'), j({ runtimeDeps: { stack: 'python', sourceDirs: ['src'] } }))
   add('OPS-02 Python 负向：第三方未声明', 'SPEC-OPS-02', bad, 1, 'flask')
 
   const abs = base(project('py-ops02-abs'))
+  write(join(abs, 'pyproject.toml'), '[project]\nname = "smoke-py-abs"\n')
   write(join(abs, 'src/service/__init__.py'), '')
   write(join(abs, 'src/service/b.py'), 'b = 1\n')
   write(join(abs, 'src/a.py'), 'import service.b\n')

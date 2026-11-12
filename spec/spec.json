@@ -1,5 +1,5 @@
 {
-  "version": "0.8.0",
+  "version": "0.9.0",
   "entries": [
     {
       "id": "SPEC-AUTH-01",
@@ -81,8 +81,8 @@
     {
       "id": "SPEC-OPS-02",
       "domain": "ops",
-      "statement": "代码中 import 的第三方包必须属于 .vibe/runtime-deps.json 声明的运行期依赖。",
-      "rationale": "未声明的依赖会让部署环境缺包；同时这条守住「底座不进运行时」——底座的包只要出现在运行依赖里就会被点名。",
+      "statement": "代码中 import 的第三方包必须属于 .vibe/runtime-deps.json 声明的运行期依赖；且项目必须存在显式的依赖声明文件（package.json / pyproject.toml），空声明也算声明。",
+      "rationale": "未声明的依赖会让部署环境缺包；零声明项目会让本条判定平凡通过（真实项目验证发现），所以必须要求显式声明；同时这条守住「底座不进运行时」。",
       "planned": false,
       "referenced_by": [
         "SPEC-OPS-02",
