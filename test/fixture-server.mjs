@@ -3,7 +3,7 @@
  * 夹具服务 —— 给 test/smoke.mjs 和人工调试用
  *
  * 用法：node test/fixture-server.mjs <port> <mode>
- *   mode: good | no-checks | ready-500 | same-as-health
+ *   mode: good | no-checks | ready-500 | same-as-health | allow-all | leak
  */
 import { createServer } from 'node:http'
 
@@ -15,6 +15,16 @@ const ROUTES = [
   { method: 'GET', path: '/ready' },
   { method: 'GET', path: '/api/orders/:id' },
 ]
+
+const USERS = {
+  'Bearer token-a': { owner: 'a' },
+  'Bearer token-b': { owner: 'b' },
+}
+
+const ORDERS = {
+  'ord-aaa': { id: 'ord-aaa', owner: 'a', item: 'A 的订单' },
+  'ord-bbb': { id: 'ord-bbb', owner: 'b', item: 'B 的订单' },
+}
 
 const server = createServer((req, res) => {
   const url = new URL(req.url, `http://127.0.0.1:${port}`)
@@ -34,7 +44,20 @@ const server = createServer((req, res) => {
 
   if (url.pathname === '/__vibe/routes') return send(200, { routes: ROUTES })
 
-  if (url.pathname === '/api/orders/:id') return send(200, { id: '1' })
+  if (url.pathname.startsWith('/api/orders/')) {
+    const id = decodeURIComponent(url.pathname.slice('/api/orders/'.length))
+    const user = USERS[req.headers.authorization || '']
+    const order = ORDERS[id]
+
+    if (mode === 'allow-all') return send(200, order || { id })
+    if (!user) return send(401, { error: 'unauthorized' })
+    if (!order) return send(404, { error: 'not found' })
+    if (order.owner !== user.owner) {
+      if (mode === 'leak') return send(403, { error: 'forbidden', leaked: order })
+      return send(403, { error: 'forbidden' })
+    }
+    return send(200, order)
+  }
 
   send(404, { error: 'not found' })
 })

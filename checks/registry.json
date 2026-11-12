@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "checks": [
     {
       "id": "SPEC-STR-01",
@@ -13,6 +13,13 @@
       "dir": "checks/SPEC-AUTH-01",
       "kind": "declaration",
       "title": "路由清单与实际一致，public 必须带理由",
+      "implemented": true
+    },
+    {
+      "id": "SPEC-AUTH-02",
+      "dir": "checks/SPEC-AUTH-02",
+      "kind": "behavior",
+      "title": "越权隔离：A 读不到 B 的资源",
       "implemented": true
     },
     {

@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-AUTH-02",
+  "spec_ref": "SPEC-AUTH-02",
+  "title": "越权隔离：A 读不到 B 的资源",
+  "kind": "behavior",
+  "consumes": ["config.json"],
+  "applies_to": ["*"],
+  "identity": "user",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 60000
+}

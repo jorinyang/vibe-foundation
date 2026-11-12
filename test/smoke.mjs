@@ -56,7 +56,7 @@ function fileConfig(dir) {
   write(join(dir, '.vibe', 'config.json'), j({ routeSource: { type: 'file', path: '.vibe/routes.actual.json' } }))
 }
 
-function serviceConfig(dir, port, mode, timeout = 8000) {
+function serviceConfig(dir, port, mode, timeout = 8000, extra = {}) {
   write(join(dir, '.vibe', 'config.json'), j({
     routeSource: { type: 'file', path: '.vibe/routes.actual.json' },
     service: {
@@ -64,6 +64,7 @@ function serviceConfig(dir, port, mode, timeout = 8000) {
       baseUrl: `http://127.0.0.1:${port}`,
       startupTimeoutMs: timeout,
     },
+    ...extra,
   }))
 }
 
@@ -143,6 +144,31 @@ function add(name, id, dir, expect, contains) {
   writeRoutes(ghost, [HEALTH_ROUTE, ORDER_ROUTE, { ...ORDER_ROUTE, path: '/__ghost' }])
   writeActual(ghost, strip([HEALTH_ROUTE, ORDER_ROUTE]))
   add('AUTH-01 负向：幽灵声明', 'SPEC-AUTH-01', ghost, 1, '实际不存在')
+}
+
+// ── SPEC-AUTH-02 ──────────────────────────────────────────
+const AUTHZ = {
+  authzProbe: {
+    method: 'GET',
+    pathTemplate: '/api/orders/{id}',
+    tokenHeader: 'authorization',
+    userA: { token: 'Bearer token-a', resourceId: 'ord-aaa' },
+    userB: { token: 'Bearer token-b', resourceId: 'ord-bbb' },
+    denyStatus: [403, 404],
+  },
+}
+{
+  const pass = base(project('authz-pass'))
+  serviceConfig(pass, 4130, 'good', 8000, AUTHZ)
+  add('AUTH-02 正向：越权被拒且不泄露', 'SPEC-AUTH-02', pass, 0, '越权响应不含他人资源标识')
+
+  const leak = base(project('authz-leak'))
+  serviceConfig(leak, 4131, 'leak', 8000, AUTHZ)
+  add('AUTH-02 负向：403 但泄露数据', 'SPEC-AUTH-02', leak, 1, '拒绝但泄露数据')
+
+  const allowAll = base(project('authz-allowall'))
+  serviceConfig(allowAll, 4132, 'allow-all', 8000, AUTHZ)
+  add('AUTH-02 负向：没有归属校验', 'SPEC-AUTH-02', allowAll, 1, 'A 读 B 的资源')
 }
 
 // ── SPEC-OPS-01 ───────────────────────────────────────────

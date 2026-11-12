@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "entries": [
     {
       "id": "SPEC-STR-01",
@@ -14,6 +14,13 @@
       "statement": "所有对外路由必须在 .vibe/routes.json 中声明；声明必须与实际路由一致；public 路由必须写明公开理由。",
       "rationale": "未声明的路由会绕过默认拒绝，是 vibecoding 项目最常见的上线事故来源；没有理由的 public 声明等于没有审查。",
       "referenced_by": ["SPEC-AUTH-01"]
+    },
+    {
+      "id": "SPEC-AUTH-02",
+      "domain": "auth",
+      "statement": "用户 A 不得读到用户 B 的资源：越权请求必须返回拒绝状态；拒绝响应中不得出现他人资源标识。",
+      "rationale": "默认拒绝只保证未登录被拦；越权才是上线后最常见的真实事故，且「返回 403 但把数据一起带出来」极难被发现。",
+      "referenced_by": ["SPEC-AUTH-02"]
     },
     {
       "id": "SPEC-OPS-01",

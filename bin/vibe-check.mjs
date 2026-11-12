@@ -46,6 +46,11 @@ function sub(name) {
   return { name, ok: false, detail: '' }
 }
 
+/** 单条子判定的整体失败（起不来、配置缺失等） */
+function single(name, detail) {
+  return { ok: false, subs: [Object.assign(sub(name), { detail })] }
+}
+
 function readProjectConfig(project) {
   const p = join(project, '.vibe', 'config.json')
   if (!existsSync(p)) return { error: '缺少 .vibe/config.json' }
@@ -360,9 +365,96 @@ async function runOps01(project) {
   return { ok: subs.every((s) => s.ok), subs }
 }
 
+// ── SPEC-AUTH-02：越权隔离（双身份行为判定）─────────────────────
+async function runAuthz02(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return single('读取 .vibe/config.json', cfgRes.error)
+
+  const cfg = cfgRes.config
+  const probe = cfg.authzProbe
+  if (!probe) return single('读取 authzProbe 配置', 'config.json 缺少 authzProbe')
+  if (!probe.userA || !probe.userB) return single('读取 authzProbe 配置', 'authzProbe 缺少 userA / userB')
+  if (!probe.pathTemplate) return single('读取 authzProbe 配置', 'authzProbe 缺少 pathTemplate')
+  if (!cfg.service || !cfg.service.startCommand) return single('读取 service 配置', 'config.json 缺少 service.startCommand')
+
+  const started = await startService(project, cfg.service)
+  if (started.error) return single('服务启动', started.error)
+
+  const subs = [Object.assign(sub('服务启动'), { ok: true, detail: cfg.service.baseUrl })]
+  const base = String(cfg.service.baseUrl).replace(/\/$/, '')
+  const header = String(probe.tokenHeader || 'authorization')
+  const deny = Array.isArray(probe.denyStatus) && probe.denyStatus.length ? probe.denyStatus : [403, 404]
+  const urlOf = (rid) => base + String(probe.pathTemplate).replace('{id}', encodeURIComponent(String(rid)))
+
+  const call = async (token, rid) => {
+    const res = await fetch(urlOf(rid), {
+      method: String(probe.method || 'GET'),
+      headers: { [header]: String(token) },
+      signal: AbortSignal.timeout(8000),
+    })
+    const text = await res.text()
+    let body = null
+    try {
+      body = JSON.parse(text)
+    } catch {
+      body = null
+    }
+    return { status: res.status, body, text }
+  }
+
+  try {
+    const ownA = sub('A 读自己的资源 → 2xx')
+    try {
+      const r = await call(probe.userA.token, probe.userA.resourceId)
+      ownA.ok = r.status >= 200 && r.status < 300
+      ownA.detail = `状态码 ${r.status}`
+    } catch (e) {
+      ownA.detail = `请求失败：${e.message}`
+    }
+    subs.push(ownA)
+
+    const cross = sub('A 读 B 的资源 → 拒绝')
+    let crossRes = null
+    try {
+      crossRes = await call(probe.userA.token, probe.userB.resourceId)
+      cross.ok = deny.includes(crossRes.status)
+      cross.detail = `状态码 ${crossRes.status}（期望 ${deny.join('/')}）`
+    } catch (e) {
+      cross.detail = `请求失败：${e.message}`
+    }
+    subs.push(cross)
+
+    const ownB = sub('B 读自己的资源 → 2xx')
+    try {
+      const r = await call(probe.userB.token, probe.userB.resourceId)
+      ownB.ok = r.status >= 200 && r.status < 300
+      ownB.detail = `状态码 ${r.status}`
+    } catch (e) {
+      ownB.detail = `请求失败：${e.message}`
+    }
+    subs.push(ownB)
+
+    const leak = sub('越权响应不含他人资源标识')
+    if (!crossRes) {
+      leak.detail = '越权请求未完成，无法判断'
+    } else if (crossRes.text.includes(String(probe.userB.resourceId))) {
+      leak.detail = '响应体中出现了他人资源标识（拒绝但泄露数据）'
+    } else {
+      leak.ok = true
+      leak.detail = '未出现他人资源标识'
+    }
+    subs.push(leak)
+  } finally {
+    await started.stop()
+  }
+
+  return { ok: subs.every((s) => s.ok), subs }
+}
+
 const RUNNERS = {
   'SPEC-STR-01': runStr01,
   'SPEC-AUTH-01': runAuth01,
+  'SPEC-AUTH-02': runAuthz02,
   'SPEC-OPS-01': runOps01,
 }
 
