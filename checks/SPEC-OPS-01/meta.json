@@ -1,0 +1,12 @@
+{
+  "id": "SPEC-OPS-01",
+  "spec_ref": "SPEC-OPS-01",
+  "title": "health / ready 语义分离，ready 含 checks",
+  "kind": "probe",
+  "consumes": ["config.json"],
+  "applies_to": ["*"],
+  "identity": "none",
+  "severity": "block",
+  "mode": ["dev", "ci"],
+  "timeout_ms": 60000
+}

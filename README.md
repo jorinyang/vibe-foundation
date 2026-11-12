@@ -15,19 +15,55 @@ vibecoding 项目的通用工程化底座。
 
 ## 当前状态
 
-Phase 0 · 第一条判定 `SPEC-STR-01` 已跑通（零外部依赖，打通 spec → check → CLI → 报告 → 处方 全链路）。
+SPEC `0.3.0`，三条判定已实现，覆盖三种判定模式：
+
+| 判定 | 模式 | 验的是什么 |
+|---|---|---|
+| `SPEC-STR-01` | declaration | 项目宪法 ≤150 行；底座版本引用与实际一致 |
+| `SPEC-AUTH-01` | declaration | 路由声明合法；声明与实际路由一致；public 必须带理由 |
+| `SPEC-OPS-01` | probe | 真起服务，验 health / ready 语义分离，ready 含 `checks` |
+
+13 条端到端用例（正向 + 负向）全绿。
 
 ## 用法
 
 ```bash
-# 检查某个项目
-node bin/vibe-check.mjs SPEC-STR-01 --project /path/to/project
+# 跑单条判定
+node bin/vibe-check.mjs SPEC-OPS-01 --project /path/to/project
 
 # 机器可读输出
-node bin/vibe-check.mjs SPEC-STR-01 --project . --json
+node bin/vibe-check.mjs SPEC-AUTH-01 --project . --json
+
+# 全部判定的正负向用例自检
+node bin/vibe-check.mjs --self-test
 ```
 
 退出码：`0` 通过 / `1` 失败 / `2` 配置错误 / `3` 判定崩溃。
+
+## 项目侧要放的文件
+
+`.vibe/` 目录：
+
+| 文件 | 作用 |
+|---|---|
+| `ref.json` | `{"spec":"0.3.0"}` — 锁定的底座版本 |
+| `config.json` | `routeSource`（file / endpoint）、`service`（startCommand / baseUrl）、`endpoints` |
+| `routes.json` | 路由声明：`visibility: public` 必带 `reason`（≥8 字），`protected` 必带 `resource/action/subjects` |
+| `routes.actual.json` | 实际路由表（`routeSource.type = "file"` 时用） |
+
+`.vibe/config.json` 示例：
+
+```json
+{
+  "routeSource": { "type": "file", "path": ".vibe/routes.actual.json" },
+  "service": {
+    "startCommand": "npm start",
+    "baseUrl": "http://127.0.0.1:3000",
+    "startupTimeoutMs": 15000
+  },
+  "endpoints": { "health": "/health", "ready": "/ready" }
+}
+```
 
 ## 目录
 
@@ -35,6 +71,7 @@ node bin/vibe-check.mjs SPEC-STR-01 --project . --json
 bin/            vibe-check 命令行入口
 checks/         判定（每个 SPEC-ID 一个目录：meta / positive / negative / fix）
 spec/           SPEC 契约（spec.json 是唯一真源）
+test/           夹具服务 + 端到端 smoke
 ```
 
 ## 设计文档

@@ -8,19 +8,24 @@
  * 退出码：0 通过 / 1 失败 / 2 配置错误 / 3 判定崩溃
  */
 import { readFileSync, existsSync } from 'node:fs'
-import { resolve, join, dirname } from 'node:path'
+import { spawn, spawnSync } from 'node:child_process'
+import { join, dirname, isAbsolute, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const EXIT = { PASS: 0, FAIL: 1, CONFIG: 2, CRASH: 3 }
 const MIN_PUBLIC_REASON = 8
+const DEFAULT_HEALTH = '/health'
+const DEFAULT_READY = '/ready'
 
+// ── 基础工具 ────────────────────────────────────────────────
 function parseArgs(argv) {
-  const args = { checkId: null, project: process.cwd(), json: false }
+  const args = { checkId: null, project: process.cwd(), json: false, selfTest: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--project' || a === '-p') args.project = resolve(argv[++i])
     else if (a === '--json') args.json = true
+    else if (a === '--self-test') args.selfTest = true
     else if (!a.startsWith('-') && !args.checkId) args.checkId = a
   }
   return args
@@ -41,7 +46,92 @@ function sub(name) {
   return { name, ok: false, detail: '' }
 }
 
-const routeKey = (r) => `${String(r.method || '').toUpperCase()} ${r.path}`
+function readProjectConfig(project) {
+  const p = join(project, '.vibe', 'config.json')
+  if (!existsSync(p)) return { error: '缺少 .vibe/config.json' }
+  try {
+    return { config: readJson(p) }
+  } catch (e) {
+    return { error: `config.json 不是合法 JSON：${e.message}` }
+  }
+}
+
+async function fetchJson(url, timeoutMs = 5000) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+  const text = await res.text()
+  let body = null
+  try {
+    body = JSON.parse(text)
+  } catch {
+    body = null
+  }
+  return { status: res.status, body, text }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/** 杀掉整个进程树（Windows 上 shell 启动的孙进程不会被 child.kill 清掉） */
+function stopTree(child) {
+  return new Promise((done) => {
+    if (!child || child.exitCode !== null || !child.pid) return done()
+    if (process.platform === 'win32') {
+      const k = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+      k.on('exit', () => setTimeout(done, 300))
+      k.on('error', () => {
+        try { child.kill('SIGKILL') } catch { /* ignore */ }
+        setTimeout(done, 300)
+      })
+    } else {
+      try { child.kill('SIGTERM') } catch { /* ignore */ }
+      setTimeout(done, 500)
+    }
+  })
+}
+
+/** 起服务并等到端口可用；返回 { stop } 或 { error } */
+async function startService(project, svc) {
+  const cwd = isAbsolute(svc.cwd || '') ? svc.cwd : resolve(project, svc.cwd || '.')
+  const timeout = Number(svc.startupTimeoutMs || 15000)
+  const base = String(svc.baseUrl || '').replace(/\/$/, '')
+  if (!base) return { error: 'service.baseUrl 未配置' }
+
+  let child
+  try {
+    child = spawn(svc.startCommand, {
+      cwd,
+      shell: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: { ...process.env, ...(svc.env || {}) },
+    })
+  } catch (e) {
+    return { error: `启动失败：${e.message}` }
+  }
+
+  let exited = false
+  let exitInfo = ''
+  child.on('exit', (code, sig) => {
+    exited = true
+    exitInfo = `code=${code} signal=${sig}`
+  })
+
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if (exited) return { error: `服务提前退出（${exitInfo}）：${svc.startCommand}` }
+    try {
+      await fetch(base + '/', { signal: AbortSignal.timeout(800) })
+      return { stop: () => stopTree(child) }
+    } catch {
+      /* 还没起来 */
+    }
+    await sleep(200)
+  }
+  await stopTree(child)
+  return { error: `服务在 ${timeout}ms 内未在 ${base} 就绪` }
+}
 
 // ── SPEC-STR-01：项目宪法单屏 + 底座引用版本对账 ─────────────────
 function runStr01(project, specVersion) {
@@ -85,6 +175,8 @@ function runStr01(project, specVersion) {
 }
 
 // ── SPEC-AUTH-01：路由声明合法 + 声明覆盖实际 ───────────────────
+const routeKey = (r) => `${String(r.method || '').toUpperCase()} ${r.path}`
+
 function validateRouteDeclarations(data) {
   const errs = []
   if (!data || typeof data !== 'object' || Array.isArray(data)) return ['routes.json 顶层不是对象']
@@ -115,17 +207,12 @@ function validateRouteDeclarations(data) {
   return errs
 }
 
-function loadActualRoutes(project) {
-  const configPath = join(project, '.vibe', 'config.json')
-  if (!existsSync(configPath)) return { error: '缺少 .vibe/config.json' }
-  let config
-  try {
-    config = readJson(configPath)
-  } catch (e) {
-    return { error: `config.json 不是合法 JSON：${e.message}` }
-  }
-  const src = config.routeSource
+async function loadActualRoutes(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return { error: cfgRes.error }
+  const src = cfgRes.config.routeSource
   if (!src || typeof src !== 'object') return { error: 'config.json 缺少 routeSource' }
+
   if (src.type === 'file') {
     const rel = String(src.path || '.vibe/routes.actual.json')
     const p = join(project, rel)
@@ -138,11 +225,23 @@ function loadActualRoutes(project) {
       return { error: `routes.actual.json 不是合法 JSON：${e.message}` }
     }
   }
-  if (src.type === 'endpoint') return { error: 'routeSource.endpoint 尚未实现，请先用 type=file' }
+
+  if (src.type === 'endpoint') {
+    if (!src.url) return { error: 'routeSource.endpoint 缺少 url' }
+    try {
+      const r = await fetchJson(String(src.url), Number(src.timeoutMs || 5000))
+      if (r.status < 200 || r.status >= 300) return { error: `routeSource.endpoint 返回 ${r.status}` }
+      if (!r.body || !Array.isArray(r.body.routes)) return { error: 'routeSource.endpoint 响应缺少 routes 数组' }
+      return { routes: r.body.routes }
+    } catch (e) {
+      return { error: `请求 ${src.url} 失败：${e.message}` }
+    }
+  }
+
   return { error: `routeSource.type 不认识：${src.type}` }
 }
 
-function runAuth01(project) {
+async function runAuth01(project) {
   const subs = []
 
   const decl = sub('routes.json 声明合法')
@@ -168,7 +267,7 @@ function runAuth01(project) {
   subs.push(decl)
 
   const cover = sub('声明覆盖实际路由')
-  const actual = loadActualRoutes(project)
+  const actual = await loadActualRoutes(project)
   if (actual.error) {
     cover.detail = actual.error
   } else if (!declared) {
@@ -193,16 +292,91 @@ function runAuth01(project) {
   return { ok: subs.every((s) => s.ok), subs }
 }
 
+// ── SPEC-OPS-01：health / ready 语义分离 ────────────────────────
+async function runOps01(project) {
+  const cfgRes = readProjectConfig(project)
+  if (cfgRes.error) return { ok: false, subs: [Object.assign(sub('读取 .vibe/config.json'), { detail: cfgRes.error })] }
+  const cfg = cfgRes.config
+  if (!cfg.service || !cfg.service.startCommand) {
+    return {
+      ok: false,
+      subs: [Object.assign(sub('读取 service 配置'), { detail: 'config.json 缺少 service.startCommand' })],
+    }
+  }
+
+  const healthPath = (cfg.endpoints && cfg.endpoints.health) || DEFAULT_HEALTH
+  const readyPath = (cfg.endpoints && cfg.endpoints.ready) || DEFAULT_READY
+
+  const started = await startService(project, cfg.service)
+  if (started.error) {
+    return { ok: false, subs: [Object.assign(sub('服务启动'), { detail: started.error })] }
+  }
+
+  const subs = [Object.assign(sub('服务启动'), { ok: true, detail: cfg.service.baseUrl })]
+  const base = String(cfg.service.baseUrl).replace(/\/$/, '')
+
+  try {
+    const health = await (async () => {
+      const s = sub(`GET ${healthPath} 返回 JSON 对象`)
+      try {
+        const r = await fetchJson(base + healthPath)
+        if (r.status < 200 || r.status >= 300) s.detail = `状态码 ${r.status}`
+        else if (!r.body || typeof r.body !== 'object' || Array.isArray(r.body)) s.detail = '响应体不是 JSON 对象'
+        else { s.ok = true; s.detail = `${r.status} ${JSON.stringify(r.body).slice(0, 50)}` }
+      } catch (e) {
+        s.detail = `请求失败：${e.message}`
+      }
+      return s
+    })()
+    subs.push(health)
+
+    const ready = await (async () => {
+      const s = sub(`GET ${readyPath} 返回 JSON 对象`)
+      try {
+        const r = await fetchJson(base + readyPath)
+        if (r.status < 200 || r.status >= 300) s.detail = `状态码 ${r.status}`
+        else if (!r.body || typeof r.body !== 'object' || Array.isArray(r.body)) s.detail = '响应体不是 JSON 对象'
+        else { s.ok = true; s.detail = `${r.status}` }
+      } catch (e) {
+        s.detail = `请求失败：${e.message}`
+      }
+      return s
+    })()
+    subs.push(ready)
+
+    const checks = sub(`${readyPath} 含 checks 数组`)
+    try {
+      const r = await fetchJson(base + readyPath)
+      if (!r.body || !Array.isArray(r.body.checks)) checks.detail = '响应缺少 checks 数组（无法反映依赖状态）'
+      else { checks.ok = true; checks.detail = `checks ${r.body.checks.length} 项` }
+    } catch (e) {
+      checks.detail = `请求失败：${e.message}`
+    }
+    subs.push(checks)
+  } finally {
+    await started.stop()
+  }
+
+  return { ok: subs.every((s) => s.ok), subs }
+}
+
 const RUNNERS = {
   'SPEC-STR-01': runStr01,
   'SPEC-AUTH-01': runAuth01,
+  'SPEC-OPS-01': runOps01,
 }
 
-function main() {
+// ── 主流程 ─────────────────────────────────────────────────
+async function main() {
   const args = parseArgs(process.argv.slice(2))
 
+  if (args.selfTest) {
+    const r = spawnSync(process.execPath, [join(ROOT, 'test', 'smoke.mjs')], { stdio: 'inherit' })
+    return r.status === 0 ? EXIT.PASS : EXIT.FAIL
+  }
+
   if (!args.checkId) {
-    console.error('用法：vibe-check <SPEC-ID> [--project <dir>] [--json]')
+    console.error('用法：vibe-check <SPEC-ID> [--project <dir>] [--json] | vibe-check --self-test')
     return EXIT.CONFIG
   }
 
@@ -226,7 +400,7 @@ function main() {
 
   let result
   try {
-    result = runner(args.project, spec.version)
+    result = await runner(args.project, spec.version)
   } catch (e) {
     console.error(`[CRASH] ${args.checkId} 执行崩溃：${e.stack || e.message}`)
     return EXIT.CRASH
@@ -253,7 +427,7 @@ function main() {
   console.log(`  项目：${args.project}`)
   result.subs.forEach((s, i) => {
     const branch = i === result.subs.length - 1 ? '└─' : '├─'
-    console.log(`  ${branch} ${s.name.padEnd(24)} ${mark(s.ok).padEnd(5)} ${s.detail}`)
+    console.log(`  ${branch} ${s.name.padEnd(26)} ${mark(s.ok).padEnd(5)} ${s.detail}`)
   })
   if (!result.ok) console.log(`  处方：checks/${args.checkId}/fix.md`)
   console.log(`退出码 ${exitCode}`)
@@ -265,4 +439,4 @@ function err(msg) {
   return EXIT.CONFIG
 }
 
-process.exit(main())
+process.exit(await main())

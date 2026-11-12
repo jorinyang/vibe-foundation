@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "checks": [
     {
       "id": "SPEC-STR-01",
@@ -13,6 +13,13 @@
       "dir": "checks/SPEC-AUTH-01",
       "kind": "declaration",
       "title": "路由清单与实际一致，public 必须带理由",
+      "implemented": true
+    },
+    {
+      "id": "SPEC-OPS-01",
+      "dir": "checks/SPEC-OPS-01",
+      "kind": "probe",
+      "title": "health / ready 语义分离，ready 含 checks",
       "implemented": true
     }
   ]
